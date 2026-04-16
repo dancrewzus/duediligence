@@ -13,12 +13,13 @@ export async function createGitHubMcp(): Promise<McpClient | null> {
       command: 'npx',
       args: ['-y', '@modelcontextprotocol/server-github'],
       env: {
-        ...(process.env as Record<string, string>),
+        PATH: process.env.PATH || '',
         GITHUB_PERSONAL_ACCESS_TOKEN: token,
       },
     })
 
     const mcpClient = new McpClient({ transport })
+    await mcpClient.listTools()
     console.log('[MCP] GitHub MCP server connected successfully')
     return mcpClient
   } catch (error) {
