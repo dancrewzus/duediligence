@@ -206,3 +206,37 @@ a:hover {
   padding: 60px 0;
   color: var(--text-secondary);
 }
+
+/* Layout wrapper */
+.main {
+  min-height: calc(100vh - 220px);
+}
+
+/* Attribution footer */
+.site-footer {
+  margin-top: 64px;
+  padding: 24px 0 32px;
+  border-top: 1px solid var(--border-subtle);
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.site-footer a {
+  color: var(--accent-blue);
+}
+
+.site-footer em {
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+.site-footer strong {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.site-footer-links {
+  margin-top: 8px;
+}

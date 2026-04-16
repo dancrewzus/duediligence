@@ -12,7 +12,7 @@ const { title, activePage = 'analyze' } = Astro.props
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{title} | Due Diligence Tecnico</title>
+    <title>{title} | Due Diligence Técnico</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -20,13 +20,28 @@ const { title, activePage = 'analyze' } = Astro.props
   <body>
     <div class="container">
       <nav class="nav">
-        <div class="nav-brand">Due Diligence <span>Tecnico</span></div>
+        <div class="nav-brand">Due Diligence <span>Técnico</span></div>
         <div class="nav-links">
           <a href="/" class={activePage === 'analyze' ? 'active' : ''}>Analizar</a>
           <a href="/portfolio" class={activePage === 'portfolio' ? 'active' : ''}>Portfolio</a>
         </div>
       </nav>
-      <slot />
+      <main class="main">
+        <slot />
+      </main>
+      <footer class="site-footer">
+        <p>
+          Due Diligence Técnico — desarrollado por
+          <a href="https://github.com/dancrewzus" target="_blank" rel="noopener">Daniel Rodríguez</a>
+          para el challenge <em>"Construye con Strands Agents"</em> de AWS en
+          <strong>Nerdearla Chile 2026</strong>.
+        </p>
+        <p class="site-footer-links">
+          <a href="https://github.com/dancrewzus/duediligence" target="_blank" rel="noopener">
+            Ver en GitHub →
+          </a>
+        </p>
+      </footer>
     </div>
   </body>
 </html>
