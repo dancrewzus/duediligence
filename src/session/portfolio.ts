@@ -41,6 +41,17 @@ export const saveAnalysis = tool({
   },
 })
 
+export function persistReport(report: { repo: string; scoreTotal: number; resumen: string }): void {
+  const portfolio = loadPortfolio()
+  portfolio.push({
+    repo: report.repo,
+    fecha: new Date().toISOString(),
+    score: report.scoreTotal,
+    resumen: report.resumen,
+  })
+  writeFileSync(PORTFOLIO_PATH, JSON.stringify(portfolio, null, 2), 'utf-8')
+}
+
 export const getPortfolio = tool({
   name: 'get_portfolio',
   description: 'Get all previously analyzed startups from the portfolio. Use this to compare startups or answer questions about past analyses.',

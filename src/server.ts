@@ -3,7 +3,7 @@ import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { createAgent } from './agent.js'
-import { loadPortfolio } from './session/portfolio.js'
+import { loadPortfolio, persistReport } from './session/portfolio.js'
 import type { AnalysisReport } from './types/index.js'
 
 const app = new Hono()
@@ -53,6 +53,7 @@ app.post('/api/analyze', async (c) => {
     if (report) {
       report.repo = `${parsed.owner}/${parsed.repo}`
       report.fecha = new Date().toISOString()
+      persistReport(report)
       return c.json(report)
     }
 
