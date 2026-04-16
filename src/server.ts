@@ -2,9 +2,10 @@ import 'dotenv/config'
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { streamSSE } from 'hono/streaming'
 import { createAgent } from './agent.js'
 import { loadPortfolio, persistReport } from './session/portfolio.js'
-import type { AnalysisReport } from './types/index.js'
+import { mapToolToStage, STAGE_LABELS, extractReport, type Stage } from './server/stream-events.js'
 
 const app = new Hono()
 
@@ -25,42 +26,98 @@ function parseRepoUrl(url: string): { owner: string; repo: string } | null {
   return { owner: match[1], repo: match[2].replace(/\.git$/, '') }
 }
 
-function extractReport(text: string): AnalysisReport | null {
-  const jsonMatch = text.match(/```json\s*([\s\S]*?)```/)
-  if (!jsonMatch) return null
-  try {
-    return JSON.parse(jsonMatch[1]) as AnalysisReport
-  } catch {
-    return null
+app.get('/api/analyze/stream', async (c) => {
+  const repoUrl = c.req.query('repoUrl')
+  if (!repoUrl) {
+    return c.json({ error: 'Missing repoUrl query param' }, 400)
   }
-}
-
-app.post('/api/analyze', async (c) => {
-  const body = await c.req.json<{ repoUrl: string }>()
-
-  const parsed = parseRepoUrl(body.repoUrl)
+  const parsed = parseRepoUrl(repoUrl)
   if (!parsed) {
-    return c.json({ error: 'Invalid GitHub URL. Expected format: https://github.com/owner/repo' }, 400)
+    return c.json({ error: 'Invalid GitHub URL. Expected https://github.com/owner/repo' }, 400)
   }
 
-  try {
-    const { agent } = await getAgent()
-    const prompt = `Analiza el repositorio ${parsed.owner}/${parsed.repo} (https://github.com/${parsed.owner}/${parsed.repo}) y genera el reporte de due diligence técnico completo.`
-    const result = await agent.invoke(prompt)
-    const text = String(result)
-    const report = extractReport(text)
+  return streamSSE(c, async (stream) => {
+    const emitStage = (stage: Stage) =>
+      stream.writeSSE({ event: 'stage', data: JSON.stringify({ stage, label: STAGE_LABELS[stage] }) })
 
-    if (report) {
-      report.repo = `${parsed.owner}/${parsed.repo}`
-      report.fecha = new Date().toISOString()
-      persistReport(report)
-      return c.json(report)
+    try {
+      const { agent } = await getAgent()
+      await emitStage('starting')
+
+      const prompt = `Analiza el repositorio ${parsed.owner}/${parsed.repo} (https://github.com/${parsed.owner}/${parsed.repo}) y genera el reporte de due diligence técnico completo.`
+
+      let buffer = ''
+      let currentStage: Stage = 'starting'
+
+      for await (const evt of agent.stream(prompt)) {
+        switch (evt.type) {
+          case 'beforeToolCallEvent': {
+            const toolName = evt.toolUse.name
+            const nextStage = mapToolToStage(toolName)
+            if (nextStage !== currentStage) {
+              currentStage = nextStage
+              await emitStage(nextStage)
+            }
+            await stream.writeSSE({
+              event: 'tool',
+              data: JSON.stringify({ tool: toolName, status: 'start' }),
+            })
+            break
+          }
+          case 'afterToolCallEvent': {
+            await stream.writeSSE({
+              event: 'tool',
+              data: JSON.stringify({ tool: evt.toolUse.name, status: 'complete' }),
+            })
+            break
+          }
+          case 'modelStreamUpdateEvent': {
+            const inner = evt.event
+            if (
+              inner.type === 'modelContentBlockDeltaEvent' &&
+              inner.delta?.type === 'textDelta' &&
+              typeof inner.delta.text === 'string'
+            ) {
+              buffer += inner.delta.text
+              await stream.writeSSE({
+                event: 'token',
+                data: JSON.stringify({ text: inner.delta.text }),
+              })
+            }
+            break
+          }
+        }
+      }
+
+      if (currentStage !== 'generating_report') {
+        currentStage = 'generating_report'
+        await emitStage('generating_report')
+      }
+
+      const report = extractReport(buffer)
+      if (report) {
+        report.repo = `${parsed.owner}/${parsed.repo}`
+        report.fecha = new Date().toISOString()
+        persistReport(report)
+        await stream.writeSSE({ event: 'report', data: JSON.stringify(report) })
+        await emitStage('done')
+      } else {
+        await stream.writeSSE({
+          event: 'error',
+          data: JSON.stringify({ message: 'No se pudo parsear el reporte JSON desde la respuesta del agente.' }),
+        })
+      }
+    } catch (err) {
+      await stream.writeSSE({
+        event: 'error',
+        data: JSON.stringify({
+          message: err instanceof Error ? err.message : 'Analysis failed',
+        }),
+      })
+    } finally {
+      await stream.writeSSE({ event: 'done', data: '{}' })
     }
-
-    return c.json({ raw: text, error: 'Could not parse structured report from agent response' }, 500)
-  } catch (error) {
-    return c.json({ error: error instanceof Error ? error.message : 'Analysis failed' }, 500)
-  }
+  })
 })
 
 app.get('/api/portfolio', (c) => {
