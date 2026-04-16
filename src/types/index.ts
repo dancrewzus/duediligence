@@ -28,20 +28,50 @@ export interface RepoStructure {
   ciCdFiles: string[]
 }
 
+export interface ScoreDimension {
+  score: number
+  justificacion: string
+}
+
 export interface AnalysisScores {
-  stackArquitectura: number
-  calidadCodigo: number
-  escalabilidad: number
-  saludEquipo: number
-  seguridad: number
-  madurezDependencias: number
+  stackArquitectura: ScoreDimension
+  calidadCodigo: ScoreDimension
+  escalabilidad: ScoreDimension
+  saludEquipo: ScoreDimension
+  seguridad: ScoreDimension
+  madurezDependencias: ScoreDimension
+}
+
+export interface TechStack {
+  frontend: string[]
+  backend: string[]
+  database: string[]
+  infraestructura: string[]
+  testing: string[]
+  cicd: string[]
+}
+
+export interface RepoMetrics {
+  stars: number
+  forks: number
+  contributorsActivos30d: number
+  commitsUltimoMes: number
+  ultimoCommitHace: string
+  prsAbiertos: number
+  prsMergeadosUltimoMes: number
+  issuesAbiertos: number
+  tieneTests: boolean
+  edadProyecto: string
 }
 
 export interface AnalysisReport {
   repo: string
   fecha: string
   scores: AnalysisScores
+  tecnologias: TechStack
+  metricas: RepoMetrics
   deudaTecnica: 'Alta' | 'Media' | 'Baja'
+  deudaJustificacion: string
   scoreTotal: number
   riesgos: string[]
   fortalezas: string[]
