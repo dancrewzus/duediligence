@@ -1,0 +1,26 @@
+{
+  "name": "duediligence",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "dev:server": "tsx watch src/server.ts",
+    "dev:web": "cd web && npm run dev",
+    "build": "tsc",
+    "start:server": "node dist/server.js"
+  },
+  "dependencies": {
+    "@strands-agents/sdk": "latest",
+    "zod": "^4.1",
+    "axios": "^1.7",
+    "hono": "^4",
+    "@hono/node-server": "^1",
+    "dotenv": "^16.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.5",
+    "tsx": "^4.19",
+    "@types/node": "^20"
+  }
+}
