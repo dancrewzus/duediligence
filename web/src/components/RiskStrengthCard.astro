@@ -1,0 +1,56 @@
+---
+interface Props {
+  title: string
+  items: string[]
+  variant: 'risk' | 'strength'
+}
+
+const { title, items, variant } = Astro.props
+const icon = variant === 'risk' ? '⚠️' : '✅'
+---
+
+<div class={`rsc card rsc-${variant}`}>
+  <h3 class="rsc-title">{icon} {title}</h3>
+  <ol class="rsc-list">
+    {items.map((item) => (
+      <li class="rsc-item">{item}</li>
+    ))}
+  </ol>
+</div>
+
+<style>
+  .rsc {
+    flex: 1;
+    min-width: 280px;
+  }
+
+  .rsc-risk {
+    border-left: 3px solid var(--accent-red);
+  }
+
+  .rsc-strength {
+    border-left: 3px solid var(--accent-green);
+  }
+
+  .rsc-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 16px;
+    color: var(--text-primary);
+  }
+
+  .rsc-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-left: 20px;
+  }
+
+  .rsc-item {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+</style>
