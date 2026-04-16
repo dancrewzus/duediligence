@@ -1,0 +1,68 @@
+---
+interface Props {
+  label: string
+  score: number
+  max?: number
+}
+
+const { label, score, max = 10 } = Astro.props
+const percentage = (score / max) * 100
+const colorClass = score > 7 ? 'good' : score >= 4 ? 'ok' : 'bad'
+---
+
+<div class="score-bar">
+  <div class="score-bar-header">
+    <span class="score-bar-label">{label}</span>
+    <span class={`score-bar-value score-${colorClass}`}>{score}/{max}</span>
+  </div>
+  <div class="score-bar-track">
+    <div class={`score-bar-fill score-fill-${colorClass}`} style={`width: ${percentage}%`}></div>
+  </div>
+</div>
+
+<style>
+  .score-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .score-bar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .score-bar-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+
+  .score-bar-value {
+    font-size: 0.9rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .score-good { color: var(--score-good); }
+  .score-ok { color: var(--score-ok); }
+  .score-bad { color: var(--score-bad); }
+
+  .score-bar-track {
+    height: 8px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .score-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.6s ease;
+  }
+
+  .score-fill-good { background: var(--score-good); }
+  .score-fill-ok { background: var(--score-ok); }
+  .score-fill-bad { background: var(--score-bad); }
+</style>
