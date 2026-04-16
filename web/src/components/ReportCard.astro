@@ -1,25 +1,12 @@
 ---
 import ScoreBar from './ScoreBar.astro'
 import RiskStrengthCard from './RiskStrengthCard.astro'
+import TechStackCard from './TechStackCard.astro'
+import MetricsCard from './MetricsCard.astro'
+import type { AnalysisReport } from '../../../src/types/index.js'
 
 interface Props {
-  report: {
-    repo: string
-    fecha: string
-    scores: {
-      stackArquitectura: number
-      calidadCodigo: number
-      escalabilidad: number
-      saludEquipo: number
-      seguridad: number
-      madurezDependencias: number
-    }
-    deudaTecnica: string
-    scoreTotal: number
-    riesgos: string[]
-    fortalezas: string[]
-    recomendacion: string
-  }
+  report: AnalysisReport
 }
 
 const { report } = Astro.props
@@ -40,19 +27,25 @@ const fecha = new Date(report.fecha).toLocaleDateString('es-CL', { year: 'numeri
     </div>
   </div>
 
+  <TechStackCard tecnologias={report.tecnologias} />
+  <MetricsCard metricas={report.metricas} />
+
   <div class="report-scores card">
-    <h3 class="section-title">Dimensiones Tecnicas</h3>
+    <h3 class="section-title">Dimensiones técnicas</h3>
     <div class="scores-grid">
-      <ScoreBar label="Stack & Arquitectura" score={report.scores.stackArquitectura} />
-      <ScoreBar label="Calidad de Codigo" score={report.scores.calidadCodigo} />
-      <ScoreBar label="Escalabilidad" score={report.scores.escalabilidad} />
-      <ScoreBar label="Salud del Equipo" score={report.scores.saludEquipo} />
-      <ScoreBar label="Seguridad" score={report.scores.seguridad} />
-      <ScoreBar label="Madurez de Dependencias" score={report.scores.madurezDependencias} />
+      <ScoreBar label="Stack & Arquitectura" score={report.scores.stackArquitectura.score} justificacion={report.scores.stackArquitectura.justificacion} />
+      <ScoreBar label="Calidad de código" score={report.scores.calidadCodigo.score} justificacion={report.scores.calidadCodigo.justificacion} />
+      <ScoreBar label="Escalabilidad" score={report.scores.escalabilidad.score} justificacion={report.scores.escalabilidad.justificacion} />
+      <ScoreBar label="Salud del equipo" score={report.scores.saludEquipo.score} justificacion={report.scores.saludEquipo.justificacion} />
+      <ScoreBar label="Seguridad" score={report.scores.seguridad.score} justificacion={report.scores.seguridad.justificacion} />
+      <ScoreBar label="Madurez de dependencias" score={report.scores.madurezDependencias.score} justificacion={report.scores.madurezDependencias.justificacion} />
     </div>
     <div class="deuda-row">
-      <span class="deuda-label">Deuda Tecnica</span>
-      <span class={`badge badge-${deudaClass}`}>{report.deudaTecnica}</span>
+      <div class="deuda-left">
+        <span class="deuda-label">Deuda técnica</span>
+        <span class={`badge badge-${deudaClass}`}>{report.deudaTecnica}</span>
+      </div>
+      <p class="deuda-justification">{report.deudaJustificacion}</p>
     </div>
   </div>
 
@@ -62,7 +55,7 @@ const fecha = new Date(report.fecha).toLocaleDateString('es-CL', { year: 'numeri
   </div>
 
   <div class="report-recommendation card">
-    <h3 class="section-title">💡 Recomendacion al Inversor</h3>
+    <h3 class="section-title">Recomendación al inversor</h3>
     <p class="recommendation-text">{report.recomendacion}</p>
   </div>
 </div>
@@ -127,22 +120,34 @@ const fecha = new Date(report.fecha).toLocaleDateString('es-CL', { year: 'numeri
   .scores-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 20px;
+    gap: 24px;
     margin-bottom: 24px;
   }
 
   .deuda-row {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: 8px;
     padding-top: 16px;
     border-top: 1px solid var(--border-subtle);
+  }
+
+  .deuda-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }
 
   .deuda-label {
     font-size: 0.85rem;
     font-weight: 500;
     color: var(--text-secondary);
+  }
+
+  .deuda-justification {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
   }
 
   .report-details {
@@ -157,11 +162,7 @@ const fecha = new Date(report.fecha).toLocaleDateString('es-CL', { year: 'numeri
   }
 
   @media (max-width: 768px) {
-    .scores-grid {
-      grid-template-columns: 1fr;
-    }
-    .report-details {
-      flex-direction: column;
-    }
+    .scores-grid { grid-template-columns: 1fr; }
+    .report-details { flex-direction: column; }
   }
 </style>
