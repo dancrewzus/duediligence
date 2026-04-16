@@ -277,6 +277,12 @@
     reasoningPre.scrollTop = reasoningPre.scrollHeight
   }
 
+  function stopTimelineSpinner() {
+    document.querySelectorAll('.timeline-item.running').forEach((el) => {
+      el.classList.remove('running')
+    })
+  }
+
   function renderScoreBar(label: string, dim: { score: number; justificacion: string }): string {
     const pct = (dim.score / 10) * 100
     const cls = getScoreClass(dim.score)
@@ -443,6 +449,7 @@
         reportContainer.innerHTML = renderReport(report)
         progressDiv.style.display = 'none'
       } catch (err) {
+        stopTimelineSpinner()
         errorText.textContent = 'Error al parsear el reporte'
         errorDiv.style.display = 'block'
       }
@@ -453,23 +460,28 @@
       if (!(e as MessageEvent).data) return
       try {
         const { message } = JSON.parse((e as MessageEvent).data)
+        stopTimelineSpinner()
         errorText.textContent = message || 'Error durante el análisis'
         errorDiv.style.display = 'block'
       } catch {}
     })
 
     es.addEventListener('done', () => {
+      stopTimelineSpinner()
       es.close()
+      activeEs = null
       submitBtn.disabled = false
     })
 
     es.onerror = () => {
       // Connection failure (not a user-level error event)
       if (es.readyState === EventSource.CLOSED) return
+      stopTimelineSpinner()
       errorText.textContent = 'Conexión perdida con el servidor'
       errorDiv.style.display = 'block'
       submitBtn.disabled = false
       es.close()
+      activeEs = null
     }
   })
 </script>
