@@ -1,0 +1,348 @@
+---
+// No server-side props needed — this is a client-interactive component
+---
+
+<div id="analysis-section">
+  <div class="hero">
+    <h1 class="hero-title">Due Diligence <span>Tecnico</span></h1>
+    <p class="hero-subtitle">Evalua la salud tecnica de cualquier startup en GitHub</p>
+  </div>
+
+  <form id="analysis-form" class="analysis-form card">
+    <div class="form-row">
+      <input
+        type="url"
+        id="repo-url"
+        class="input"
+        placeholder="https://github.com/owner/repo"
+        required
+      />
+      <button type="submit" id="submit-btn" class="btn btn-primary">Analizar</button>
+    </div>
+  </form>
+
+  <div id="loading" class="loading" style="display: none;">
+    <div class="spinner"></div>
+    <p>Analizando repositorio... esto puede tomar unos minutos</p>
+  </div>
+
+  <div id="error" class="error-message card" style="display: none;">
+    <p id="error-text"></p>
+  </div>
+
+  <div id="report-container"></div>
+</div>
+
+<style>
+  .hero {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  .hero-title {
+    font-size: 2.5rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 8px;
+  }
+
+  .hero-title span {
+    color: var(--accent-blue);
+  }
+
+  .hero-subtitle {
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+  }
+
+  .analysis-form {
+    margin-bottom: 32px;
+  }
+
+  .form-row {
+    display: flex;
+    gap: 12px;
+  }
+
+  .form-row .input {
+    flex: 1;
+  }
+
+  .error-message {
+    border-left: 3px solid var(--accent-red);
+    color: var(--accent-red);
+    margin-bottom: 24px;
+  }
+</style>
+
+<style is:global>
+  /* Styles for client-rendered report (mirror of ScoreBar, RiskStrengthCard, ReportCard) */
+  .score-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .score-bar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .score-bar-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+  .score-bar-value {
+    font-size: 0.9rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .score-good { color: var(--score-good); }
+  .score-ok { color: var(--score-ok); }
+  .score-bad { color: var(--score-bad); }
+  .score-bar-track {
+    height: 8px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .score-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.6s ease;
+  }
+  .score-fill-good { background: var(--score-good); }
+  .score-fill-ok { background: var(--score-ok); }
+  .score-fill-bad { background: var(--score-bad); }
+
+  .rsc { flex: 1; min-width: 280px; }
+  .rsc-risk { border-left: 3px solid var(--accent-red); }
+  .rsc-strength { border-left: 3px solid var(--accent-green); }
+  .rsc-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 16px;
+    color: var(--text-primary);
+  }
+  .rsc-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-left: 20px;
+  }
+  .rsc-item {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  .report {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .section-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+  }
+  .report-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .report-repo {
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  .report-date {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-top: 4px;
+  }
+  .report-score-total {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .score-number {
+    font-size: 3rem;
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .score-label {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .score-total-good .score-number { color: var(--score-good); }
+  .score-total-ok .score-number { color: var(--score-ok); }
+  .score-total-bad .score-number { color: var(--score-bad); }
+  .scores-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+  .deuda-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .deuda-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+  .report-details {
+    display: flex;
+    gap: 20px;
+  }
+  .recommendation-text {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    line-height: 1.7;
+  }
+  @media (max-width: 768px) {
+    .scores-grid { grid-template-columns: 1fr; }
+    .report-details { flex-direction: column; }
+  }
+</style>
+
+<script>
+  const API_BASE = 'http://localhost:3001'
+
+  const form = document.getElementById('analysis-form') as HTMLFormElement
+  const input = document.getElementById('repo-url') as HTMLInputElement
+  const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement
+  const loading = document.getElementById('loading') as HTMLDivElement
+  const errorDiv = document.getElementById('error') as HTMLDivElement
+  const errorText = document.getElementById('error-text') as HTMLParagraphElement
+  const reportContainer = document.getElementById('report-container') as HTMLDivElement
+
+  function getScoreClass(score: number): string {
+    if (score > 7) return 'good'
+    if (score >= 4) return 'ok'
+    return 'bad'
+  }
+
+  function getBadgeClass(deuda: string): string {
+    if (deuda === 'Baja') return 'badge-green'
+    if (deuda === 'Media') return 'badge-yellow'
+    return 'badge-red'
+  }
+
+  function renderScoreBar(label: string, score: number): string {
+    const pct = (score / 10) * 100
+    const cls = getScoreClass(score)
+    return `
+      <div class="score-bar">
+        <div class="score-bar-header">
+          <span class="score-bar-label">${label}</span>
+          <span class="score-bar-value score-${cls}">${score}/10</span>
+        </div>
+        <div class="score-bar-track">
+          <div class="score-bar-fill score-fill-${cls}" style="width: ${pct}%"></div>
+        </div>
+      </div>
+    `
+  }
+
+  function renderReport(r: any): string {
+    const totalCls = getScoreClass(r.scoreTotal)
+    const fecha = new Date(r.fecha).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })
+
+    return `
+      <div class="report">
+        <div class="report-header card">
+          <div>
+            <h2 class="report-repo">${r.repo}</h2>
+            <p class="report-date">${fecha}</p>
+          </div>
+          <div class="report-score-total score-total-${totalCls}">
+            <span class="score-number">${r.scoreTotal.toFixed(1)}</span>
+            <span class="score-label">/ 10</span>
+          </div>
+        </div>
+
+        <div class="report-scores card">
+          <h3 class="section-title">Dimensiones Tecnicas</h3>
+          <div class="scores-grid">
+            ${renderScoreBar('Stack & Arquitectura', r.scores.stackArquitectura)}
+            ${renderScoreBar('Calidad de Codigo', r.scores.calidadCodigo)}
+            ${renderScoreBar('Escalabilidad', r.scores.escalabilidad)}
+            ${renderScoreBar('Salud del Equipo', r.scores.saludEquipo)}
+            ${renderScoreBar('Seguridad', r.scores.seguridad)}
+            ${renderScoreBar('Madurez de Dependencias', r.scores.madurezDependencias)}
+          </div>
+          <div class="deuda-row">
+            <span class="deuda-label">Deuda Tecnica</span>
+            <span class="badge ${getBadgeClass(r.deudaTecnica)}">${r.deudaTecnica}</span>
+          </div>
+        </div>
+
+        <div class="report-details">
+          <div class="card rsc rsc-risk">
+            <h3 class="rsc-title">⚠️ Top 3 Riesgos</h3>
+            <ol class="rsc-list">${r.riesgos.map((i: string) => `<li class="rsc-item">${i}</li>`).join('')}</ol>
+          </div>
+          <div class="card rsc rsc-strength">
+            <h3 class="rsc-title">✅ Top 3 Fortalezas</h3>
+            <ol class="rsc-list">${r.fortalezas.map((i: string) => `<li class="rsc-item">${i}</li>`).join('')}</ol>
+          </div>
+        </div>
+
+        <div class="report-recommendation card">
+          <h3 class="section-title">💡 Recomendacion al Inversor</h3>
+          <p class="recommendation-text">${r.recomendacion}</p>
+        </div>
+      </div>
+    `
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const url = input.value.trim()
+    if (!url) return
+
+    submitBtn.disabled = true
+    loading.style.display = 'flex'
+    errorDiv.style.display = 'none'
+    reportContainer.innerHTML = ''
+
+    try {
+      const res = await fetch(`${API_BASE}/api/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repoUrl: url }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Analysis failed')
+      }
+
+      if (data.scores) {
+        reportContainer.innerHTML = renderReport(data)
+      } else {
+        throw new Error(data.error || 'Could not parse report')
+      }
+    } catch (err: any) {
+      errorText.textContent = err.message || 'Error al analizar el repositorio'
+      errorDiv.style.display = 'block'
+    } finally {
+      submitBtn.disabled = false
+      loading.style.display = 'none'
+    }
+  })
+</script>
