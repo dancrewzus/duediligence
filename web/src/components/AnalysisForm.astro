@@ -441,6 +441,7 @@
         const report = JSON.parse(e.data)
         markAllDone()
         reportContainer.innerHTML = renderReport(report)
+        progressDiv.style.display = 'none'
       } catch (err) {
         errorText.textContent = 'Error al parsear el reporte'
         errorDiv.style.display = 'block'

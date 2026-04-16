@@ -104,7 +104,6 @@ app.get('/api/analyze/stream', async (c) => {
         } catch (persistErr) {
           console.error('[server] persistReport failed:', persistErr)
         }
-        await emitStage('done')
       } else {
         await stream.writeSSE({
           event: 'error',
