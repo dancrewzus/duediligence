@@ -98,8 +98,12 @@ app.get('/api/analyze/stream', async (c) => {
       if (report) {
         report.repo = `${parsed.owner}/${parsed.repo}`
         report.fecha = new Date().toISOString()
-        persistReport(report)
         await stream.writeSSE({ event: 'report', data: JSON.stringify(report) })
+        try {
+          persistReport(report)
+        } catch (persistErr) {
+          console.error('[server] persistReport failed:', persistErr)
+        }
         await emitStage('done')
       } else {
         await stream.writeSSE({
