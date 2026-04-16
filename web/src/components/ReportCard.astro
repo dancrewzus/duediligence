@@ -1,0 +1,167 @@
+---
+import ScoreBar from './ScoreBar.astro'
+import RiskStrengthCard from './RiskStrengthCard.astro'
+
+interface Props {
+  report: {
+    repo: string
+    fecha: string
+    scores: {
+      stackArquitectura: number
+      calidadCodigo: number
+      escalabilidad: number
+      saludEquipo: number
+      seguridad: number
+      madurezDependencias: number
+    }
+    deudaTecnica: string
+    scoreTotal: number
+    riesgos: string[]
+    fortalezas: string[]
+    recomendacion: string
+  }
+}
+
+const { report } = Astro.props
+const scoreTotalColor = report.scoreTotal > 7 ? 'good' : report.scoreTotal >= 4 ? 'ok' : 'bad'
+const deudaClass = report.deudaTecnica === 'Baja' ? 'green' : report.deudaTecnica === 'Media' ? 'yellow' : 'red'
+const fecha = new Date(report.fecha).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })
+---
+
+<div class="report">
+  <div class="report-header card">
+    <div class="report-header-info">
+      <h2 class="report-repo">{report.repo}</h2>
+      <p class="report-date">{fecha}</p>
+    </div>
+    <div class={`report-score-total score-total-${scoreTotalColor}`}>
+      <span class="score-number">{report.scoreTotal.toFixed(1)}</span>
+      <span class="score-label">/ 10</span>
+    </div>
+  </div>
+
+  <div class="report-scores card">
+    <h3 class="section-title">Dimensiones Tecnicas</h3>
+    <div class="scores-grid">
+      <ScoreBar label="Stack & Arquitectura" score={report.scores.stackArquitectura} />
+      <ScoreBar label="Calidad de Codigo" score={report.scores.calidadCodigo} />
+      <ScoreBar label="Escalabilidad" score={report.scores.escalabilidad} />
+      <ScoreBar label="Salud del Equipo" score={report.scores.saludEquipo} />
+      <ScoreBar label="Seguridad" score={report.scores.seguridad} />
+      <ScoreBar label="Madurez de Dependencias" score={report.scores.madurezDependencias} />
+    </div>
+    <div class="deuda-row">
+      <span class="deuda-label">Deuda Tecnica</span>
+      <span class={`badge badge-${deudaClass}`}>{report.deudaTecnica}</span>
+    </div>
+  </div>
+
+  <div class="report-details">
+    <RiskStrengthCard title="Top 3 Riesgos" items={report.riesgos} variant="risk" />
+    <RiskStrengthCard title="Top 3 Fortalezas" items={report.fortalezas} variant="strength" />
+  </div>
+
+  <div class="report-recommendation card">
+    <h3 class="section-title">💡 Recomendacion al Inversor</h3>
+    <p class="recommendation-text">{report.recomendacion}</p>
+  </div>
+</div>
+
+<style>
+  .report {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .section-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+  }
+
+  .report-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .report-repo {
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .report-date {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-top: 4px;
+  }
+
+  .report-score-total {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  .score-number {
+    font-size: 3rem;
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .score-label {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .score-total-good .score-number { color: var(--score-good); }
+  .score-total-ok .score-number { color: var(--score-ok); }
+  .score-total-bad .score-number { color: var(--score-bad); }
+
+  .scores-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+
+  .deuda-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .deuda-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+
+  .report-details {
+    display: flex;
+    gap: 20px;
+  }
+
+  .recommendation-text {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    line-height: 1.7;
+  }
+
+  @media (max-width: 768px) {
+    .scores-grid {
+      grid-template-columns: 1fr;
+    }
+    .report-details {
+      flex-direction: column;
+    }
+  }
+</style>
