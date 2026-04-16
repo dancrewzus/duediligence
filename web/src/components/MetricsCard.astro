@@ -1,0 +1,134 @@
+---
+interface RepoMetrics {
+  stars: number
+  forks: number
+  contributorsActivos30d: number
+  commitsUltimoMes: number
+  ultimoCommitHace: string
+  prsAbiertos: number
+  prsMergeadosUltimoMes: number
+  issuesAbiertos: number
+  tieneTests: boolean
+  edadProyecto: string
+}
+
+interface Props {
+  metricas: RepoMetrics
+}
+
+const { metricas } = Astro.props
+
+function fmt(n: number): string {
+  if (n < 0) return '—'
+  return n.toLocaleString('es-CL')
+}
+---
+
+<div class="metrics-card card">
+  <h3 class="section-title">Métricas clave</h3>
+  <div class="metrics-grid">
+    <div class="metric-tile">
+      <span class="metric-value">{fmt(metricas.stars)}</span>
+      <span class="metric-label">Stars</span>
+    </div>
+    <div class="metric-tile">
+      <span class="metric-value">{fmt(metricas.forks)}</span>
+      <span class="metric-label">Forks</span>
+    </div>
+    <div class="metric-tile">
+      <span class="metric-value">{metricas.ultimoCommitHace || '—'}</span>
+      <span class="metric-label">Último commit</span>
+    </div>
+    <div class="metric-tile">
+      <span class="metric-value">{fmt(metricas.commitsUltimoMes)}</span>
+      <span class="metric-label">Commits / mes</span>
+    </div>
+    <div class="metric-tile">
+      <span class="metric-value">{fmt(metricas.contributorsActivos30d)}</span>
+      <span class="metric-label">Contributors 30d</span>
+    </div>
+    <div class="metric-tile">
+      <span class="metric-value">{fmt(metricas.prsMergeadosUltimoMes)}</span>
+      <span class="metric-label">PRs merged / mes</span>
+    </div>
+    <div class="metric-tile">
+      <span class="metric-value">{fmt(metricas.prsAbiertos)}</span>
+      <span class="metric-label">PRs abiertos</span>
+    </div>
+    <div class="metric-tile">
+      <span class="metric-value">{fmt(metricas.issuesAbiertos)}</span>
+      <span class="metric-label">Issues abiertos</span>
+    </div>
+    <div class="metric-tile">
+      <span class="metric-value">{metricas.edadProyecto || '—'}</span>
+      <span class="metric-label">Edad proyecto</span>
+    </div>
+    <div class="metric-tile">
+      <span class={`metric-badge ${metricas.tieneTests ? 'metric-badge-yes' : 'metric-badge-no'}`}>
+        {metricas.tieneTests ? 'Sí' : 'No'}
+      </span>
+      <span class="metric-label">Tests</span>
+    </div>
+  </div>
+</div>
+
+<style>
+  .section-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+  }
+
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
+  }
+
+  .metric-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+  }
+
+  .metric-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+
+  .metric-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+
+  .metric-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    border-radius: 999px;
+    align-self: flex-start;
+  }
+
+  .metric-badge-yes {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--accent-green);
+  }
+
+  .metric-badge-no {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--accent-red);
+  }
+</style>
