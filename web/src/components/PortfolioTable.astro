@@ -1,0 +1,224 @@
+---
+// Client-side fetched — no props needed
+---
+
+<div id="portfolio-section">
+  <div class="portfolio-header">
+    <h1 class="portfolio-title">Portfolio de Analisis</h1>
+    <p class="portfolio-subtitle">Historial de startups evaluadas</p>
+  </div>
+
+  <div id="portfolio-loading" class="loading">
+    <div class="spinner"></div>
+    <p>Cargando portfolio...</p>
+  </div>
+
+  <div id="portfolio-empty" class="empty-state card" style="display: none;">
+    <p>No hay analisis previos. <a href="/">Analiza tu primera startup</a></p>
+  </div>
+
+  <div id="portfolio-table-wrapper" style="display: none;">
+    <div class="table-controls">
+      <button id="sort-score" class="btn-sort active">Ordenar por Score</button>
+      <button id="sort-date" class="btn-sort">Ordenar por Fecha</button>
+    </div>
+    <div id="portfolio-list" class="portfolio-list"></div>
+  </div>
+</div>
+
+<style>
+  .portfolio-header {
+    margin-bottom: 32px;
+  }
+
+  .portfolio-title {
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+  }
+
+  .portfolio-subtitle {
+    color: var(--text-secondary);
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 48px;
+    color: var(--text-secondary);
+  }
+
+  .table-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .btn-sort {
+    padding: 8px 16px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-sort:hover,
+  .btn-sort.active {
+    color: var(--text-primary);
+    border-color: var(--accent-blue);
+  }
+
+  .portfolio-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .portfolio-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius);
+    transition: all 0.2s;
+    cursor: default;
+  }
+
+  .portfolio-row:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-active);
+  }
+
+  .portfolio-row-info {
+    flex: 1;
+  }
+
+  .portfolio-row-repo {
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 4px;
+  }
+
+  .portfolio-row-meta {
+    display: flex;
+    gap: 16px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .portfolio-row-summary {
+    flex: 2;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    padding: 0 24px;
+    line-height: 1.5;
+  }
+
+  .portfolio-row-score {
+    font-size: 1.5rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    min-width: 60px;
+    text-align: right;
+  }
+</style>
+
+<script>
+  const API_BASE = 'http://localhost:3001'
+
+  const loadingEl = document.getElementById('portfolio-loading') as HTMLDivElement
+  const emptyEl = document.getElementById('portfolio-empty') as HTMLDivElement
+  const tableWrapper = document.getElementById('portfolio-table-wrapper') as HTMLDivElement
+  const listEl = document.getElementById('portfolio-list') as HTMLDivElement
+  const sortScoreBtn = document.getElementById('sort-score') as HTMLButtonElement
+  const sortDateBtn = document.getElementById('sort-date') as HTMLButtonElement
+
+  interface PortfolioItem {
+    repo: string
+    fecha: string
+    score: number
+    resumen: string
+  }
+
+  let portfolio: PortfolioItem[] = []
+  let sortBy: 'score' | 'date' = 'score'
+
+  function getScoreColor(score: number): string {
+    if (score > 7) return 'var(--score-good)'
+    if (score >= 4) return 'var(--score-ok)'
+    return 'var(--score-bad)'
+  }
+
+  function renderList() {
+    const sorted = [...portfolio].sort((a, b) => {
+      if (sortBy === 'score') return b.score - a.score
+      return new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+    })
+
+    listEl.innerHTML = sorted
+      .map((item) => {
+        const fecha = new Date(item.fecha).toLocaleDateString('es-CL', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        })
+        return `
+          <div class="portfolio-row">
+            <div class="portfolio-row-info">
+              <div class="portfolio-row-repo">${item.repo}</div>
+              <div class="portfolio-row-meta">
+                <span>${fecha}</span>
+              </div>
+            </div>
+            <div class="portfolio-row-summary">${item.resumen}</div>
+            <div class="portfolio-row-score" style="color: ${getScoreColor(item.score)}">
+              ${item.score.toFixed(1)}
+            </div>
+          </div>
+        `
+      })
+      .join('')
+  }
+
+  sortScoreBtn.addEventListener('click', () => {
+    sortBy = 'score'
+    sortScoreBtn.classList.add('active')
+    sortDateBtn.classList.remove('active')
+    renderList()
+  })
+
+  sortDateBtn.addEventListener('click', () => {
+    sortBy = 'date'
+    sortDateBtn.classList.add('active')
+    sortScoreBtn.classList.remove('active')
+    renderList()
+  })
+
+  async function loadPortfolio() {
+    try {
+      const res = await fetch(`${API_BASE}/api/portfolio`)
+      portfolio = await res.json()
+
+      loadingEl.style.display = 'none'
+
+      if (portfolio.length === 0) {
+        emptyEl.style.display = 'block'
+      } else {
+        tableWrapper.style.display = 'block'
+        renderList()
+      }
+    } catch {
+      loadingEl.style.display = 'none'
+      emptyEl.style.display = 'block'
+      emptyEl.querySelector('p')!.textContent = 'Error al cargar el portfolio. Verifica que el servidor este corriendo.'
+    }
+  }
+
+  loadPortfolio()
+</script>
