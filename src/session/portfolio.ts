@@ -2,7 +2,7 @@ import { tool } from '@strands-agents/sdk'
 import { z } from 'zod'
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
-import type { PortfolioEntry } from '../types/index.js'
+import type { AnalysisReport, PortfolioEntry } from '../types/index.js'
 
 const PORTFOLIO_PATH = resolve(process.cwd(), 'portfolio.json')
 
@@ -41,7 +41,7 @@ export const saveAnalysis = tool({
   },
 })
 
-export function persistReport(report: { repo: string; scoreTotal: number; resumen: string }): void {
+export function persistReport(report: AnalysisReport): void {
   const portfolio = loadPortfolio()
   portfolio.push({
     repo: report.repo,
