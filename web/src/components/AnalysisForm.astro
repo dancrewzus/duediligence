@@ -400,10 +400,17 @@
     `
   }
 
+  let activeEs: EventSource | null = null
+
   form.addEventListener('submit', (e) => {
     e.preventDefault()
     const url = input.value.trim()
     if (!url) return
+
+    if (activeEs) {
+      activeEs.close()
+      activeEs = null
+    }
 
     submitBtn.disabled = true
     errorDiv.style.display = 'none'
@@ -413,6 +420,7 @@
     setStage('starting')
 
     const es = new EventSource(`${API_BASE}/api/analyze/stream?repoUrl=${encodeURIComponent(url)}`)
+    activeEs = es
 
     es.addEventListener('stage', (e: MessageEvent) => {
       try {
