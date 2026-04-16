@@ -94,7 +94,48 @@ app.get('/api/analyze/stream', async (c) => {
         await emitStage('generating_report')
       }
 
-      const report = extractReport(buffer)
+      let report = extractReport(buffer)
+
+      if (!report) {
+        // Retry once: the model produced prose instead of the required JSON block.
+        // Ask explicitly for a clean JSON re-emission, accumulate a fresh buffer,
+        // and try to extract again.
+        console.warn('[server] First attempt missing JSON block — retrying with correction prompt.')
+        await stream.writeSSE({
+          event: 'stage',
+          data: JSON.stringify({
+            stage: 'generating_report',
+            label: 'Reintentando formato JSON...',
+          }),
+        })
+
+        const retryPrompt =
+          'Tu respuesta anterior no contiene un bloque ```json válido. ' +
+          'Emite AHORA tu respuesta final como un único bloque ```json { ... } ``` ' +
+          'con el schema EXACTO especificado en las reglas del sistema, sin prosa antes ni después. ' +
+          'No llames más tools; solo emite el JSON final con los datos que ya recolectaste.'
+
+        let retryBuffer = ''
+        for await (const evt of agent.stream(retryPrompt)) {
+          if (evt.type === 'modelStreamUpdateEvent') {
+            const inner = evt.event
+            if (
+              inner.type === 'modelContentBlockDeltaEvent' &&
+              inner.delta?.type === 'textDelta' &&
+              typeof inner.delta.text === 'string'
+            ) {
+              retryBuffer += inner.delta.text
+              await stream.writeSSE({
+                event: 'token',
+                data: JSON.stringify({ text: inner.delta.text }),
+              })
+            }
+          }
+        }
+
+        report = extractReport(retryBuffer)
+      }
+
       if (report) {
         report.repo = `${parsed.owner}/${parsed.repo}`
         report.fecha = new Date().toISOString()
@@ -107,7 +148,11 @@ app.get('/api/analyze/stream', async (c) => {
       } else {
         await stream.writeSSE({
           event: 'error',
-          data: JSON.stringify({ message: 'No se pudo parsear el reporte JSON desde la respuesta del agente.' }),
+          data: JSON.stringify({
+            message:
+              'El modelo no produjo un reporte JSON válido tras un reintento. ' +
+              'Considera usar un modelo mayor (ej. llama3.1:70b) o revisá el prompt.',
+          }),
         })
       }
     } catch (err) {
