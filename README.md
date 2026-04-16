@@ -12,20 +12,50 @@ Agente de IA que realiza due diligence técnico de startups a partir de su repos
 |------|-----------|
 | Runtime / Lenguaje | Node.js 20+, TypeScript (ESM) |
 | Ejecución TS | tsx |
-| SDK principal | `@strands-agents/sdk` (RC) — `Agent` y `tool` |
-| Proveedor LLM | Amazon Bedrock con Claude Sonnet 4 (default) |
-| Validación de schemas | zod (requerido por `@tool`) |
-| MCP GitHub | `github/github-mcp-server` vía npx |
-| HTTP Client | axios o node-fetch (GitHub REST API) |
+| SDK principal | `@strands-agents/sdk` (RC) — `Agent`, `tool`, `McpClient` |
+| Proveedor LLM | **Ollama** (local, open source) — `llama3.1` por default |
+| Adaptador LLM | `OpenAIModel` del SDK apuntando al endpoint OpenAI-compatible de Ollama |
+| Validación de schemas | zod v4 (requerido por `tool()`) |
+| MCP GitHub | `@modelcontextprotocol/server-github` vía npx |
+| HTTP Client | axios (GitHub REST API) |
+| Backend web | Hono + `@hono/node-server` |
+| Frontend | Astro 5 (componentes `.astro`, CSS vanilla, tema dark) |
 
 ### Credenciales requeridas (`.env`)
 
 ```env
-AWS_ACCESS_KEY_ID=your_key
-AWS_SECRET_ACCESS_KEY=your_secret
-AWS_REGION=us-east-1
+# Ollama local — asegurate de tener `ollama serve` corriendo
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=llama3.1
+
+# GitHub Personal Access Token (para GitHub REST API y MCP server)
 GITHUB_PERSONAL_ACCESS_TOKEN=your_github_pat
+
+# Puerto del servidor Hono
+PORT=3001
 ```
+
+### Setup de Ollama
+
+Antes de correr el proyecto necesitas tener Ollama instalado y un modelo descargado:
+
+```bash
+# Instalar Ollama (macOS/Linux)
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Descargar un modelo con soporte de tool-calling
+ollama pull llama3.1
+
+# (Si no usas la app de macOS) arrancar el servidor
+ollama serve
+```
+
+**Modelos recomendados con buen tool-calling:**
+- `llama3.1` (8B) — balance velocidad/calidad, default del proyecto
+- `qwen2.5-coder` — enfocado en código, puede ser más preciso analizando repos
+- `mistral-nemo` — buena latencia
+
+> ⚠️ **Nota sobre modelos locales:** los modelos de 8B parámetros a veces ignoran los resultados de los tools o alucinan datos. Si tu hardware lo permite, `llama3.1:70b` es notoriamente más confiable. Para swapear proveedor por uno cloud (Bedrock, Anthropic, OpenAI), basta con cambiar el modelo en `src/agent.ts`.
 
 ---
 
@@ -133,13 +163,26 @@ El agente genera siempre este formato cuando completa un análisis:
 ## Uso
 
 ```bash
-# Instalar dependencias
+# 0. Prerequisito: Ollama corriendo con el modelo descargado
+ollama pull llama3.1
+ollama serve  # (no es necesario si usas la app de macOS)
+
+# 1. Instalar dependencias
 npm install
+cd web && npm install && cd ..
 
-# Ejecutar el agente en modo desarrollo
-npm run dev
+# 2. Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tu GitHub PAT
 
-# Compilar TypeScript
+# 3. Correr el backend (CLI o servidor)
+npm run dev          # CLI interactivo via readline
+npm run dev:server   # Servidor Hono en http://localhost:3001
+
+# 4. Correr el frontend Astro (en otra terminal)
+npm run dev:web      # http://localhost:4321
+
+# Compilar TypeScript (backend)
 npm run build
 ```
 
@@ -147,8 +190,10 @@ npm run build
 
 ## Notas de implementación
 
-- El entry point es un loop de conversación simple en consola (readline).
+- El entry point CLI es un loop de conversación simple via readline. El frontend Astro consume la API HTTP de Hono (`POST /api/analyze`, `GET /api/portfolio`).
 - TypeScript estricto con tipos para todo.
-- El MCP de GitHub se conecta vía npx (sin Docker) para simplicidad.
-- Manejo de errores graceful: si el MCP falla, el agente sigue funcionando con solo el `@tool` personalizado.
+- El MCP de GitHub se conecta vía `npx -y @modelcontextprotocol/server-github` (sin Docker) para simplicidad.
+- Manejo de errores graceful: si el MCP falla al conectar (probado con `listTools()`), el agente sigue funcionando con solo los tools custom.
 - `portfolio.json` se crea automáticamente si no existe.
+- El servidor Hono es authoritative para la persistencia del portfolio (evita desync con lo que el LLM decide guardar via `save_analysis`).
+- Render client-side escapa HTML para prevenir XSS por prompt-injection via READMEs maliciosos.

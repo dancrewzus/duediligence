@@ -11,19 +11,23 @@ El proyecto aún no está scaffoldeado — esta guía describe la arquitectura o
 ## Stack y comandos
 
 - **Runtime:** Node.js 20+, TypeScript ESM (`"type": "module"`)
-- **SDK principal:** `@strands-agents/sdk` (RC en npm) — usar `Agent` y `tool`
-- **Proveedor LLM:** Amazon Bedrock con Claude Sonnet 4 (default del SDK)
-- **Validación:** `zod` (requerido por `@tool` del SDK)
-- **HTTP:** `axios` o `node-fetch` para GitHub REST API directa
-- **MCP:** `github/github-mcp-server` vía `npx` (sin Docker)
+- **SDK principal:** `@strands-agents/sdk` (RC en npm) — usar `Agent`, `tool`, `McpClient`
+- **Proveedor LLM:** **Ollama local** — se usa `OpenAIModel` apuntando a `http://localhost:11434/v1` (Ollama expone API OpenAI-compatible). Modelo default: `llama3.1`.
+- **Validación:** `zod` v4 (requerido por `tool()` del SDK)
+- **HTTP:** `axios` para GitHub REST API directa
+- **MCP:** `@modelcontextprotocol/server-github` vía `npx` (sin Docker)
+- **Backend web:** Hono + `@hono/node-server`
+- **Frontend:** Astro 5 con CSS vanilla y tema dark
 
-Scripts esperados en `package.json`:
+Scripts en `package.json`:
 
 ```json
 {
   "type": "module",
   "scripts": {
     "dev": "tsx src/index.ts",
+    "dev:server": "tsx watch src/server.ts",
+    "dev:web": "cd web && npm run dev",
     "build": "tsc"
   }
 }
@@ -32,11 +36,13 @@ Scripts esperados en `package.json`:
 Variables de entorno requeridas (`.env`):
 
 ```
-AWS_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY
-AWS_REGION
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=llama3.1
 GITHUB_PERSONAL_ACCESS_TOKEN
+PORT=3001
 ```
+
+Prerequisito: tener Ollama corriendo (`ollama serve`) con un modelo descargado (`ollama pull llama3.1`).
 
 ## Arquitectura objetivo
 

@@ -1,4 +1,5 @@
-import { Agent, BedrockModel, McpClient } from '@strands-agents/sdk'
+import { Agent, McpClient } from '@strands-agents/sdk'
+import { OpenAIModel } from '@strands-agents/sdk/models/openai'
 import { analyzeRepoStructure } from './tools/github-analyzer.js'
 import { saveAnalysis, getPortfolio, loadPortfolio } from './session/portfolio.js'
 import { createGitHubMcp } from './mcp/github-mcp.js'
@@ -50,9 +51,16 @@ export async function createAgent(): Promise<AgentContext> {
       ? `\n\nPortafolio actual (${portfolio.length} análisis previos):\n${JSON.stringify(portfolio, null, 2)}`
       : '\n\nPortafolio vacío — no hay análisis previos.'
 
-  const model = new BedrockModel({
-    region: process.env.AWS_REGION || 'us-east-1',
-    modelId: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
+  // Ollama expone una API compatible con OpenAI en /v1 — usamos OpenAIModel apuntado al host local.
+  // apiKey es dummy: Ollama no valida pero el cliente OpenAI requiere un string no vacio.
+  const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434'
+  const model = new OpenAIModel({
+    api: 'chat',
+    modelId: process.env.OLLAMA_MODEL || 'llama3.1',
+    apiKey: 'ollama',
+    clientConfig: {
+      baseURL: `${ollamaHost}/v1`,
+    },
   })
 
   const mcpClient = await createGitHubMcp()
