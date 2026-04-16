@@ -133,6 +133,15 @@
   const API_BASE = 'http://localhost:3001'
 
   const loadingEl = document.getElementById('portfolio-loading') as HTMLDivElement
+
+  function escapeHtml(s: string): string {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+  }
   const emptyEl = document.getElementById('portfolio-empty') as HTMLDivElement
   const tableWrapper = document.getElementById('portfolio-table-wrapper') as HTMLDivElement
   const listEl = document.getElementById('portfolio-list') as HTMLDivElement
@@ -171,12 +180,12 @@
         return `
           <div class="portfolio-row">
             <div class="portfolio-row-info">
-              <div class="portfolio-row-repo">${item.repo}</div>
+              <div class="portfolio-row-repo">${escapeHtml(item.repo)}</div>
               <div class="portfolio-row-meta">
                 <span>${fecha}</span>
               </div>
             </div>
-            <div class="portfolio-row-summary">${item.resumen}</div>
+            <div class="portfolio-row-summary">${escapeHtml(item.resumen)}</div>
             <div class="portfolio-row-score" style="color: ${getScoreColor(item.score)}">
               ${item.score.toFixed(1)}
             </div>

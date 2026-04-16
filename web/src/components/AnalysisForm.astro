@@ -229,6 +229,15 @@
   const errorText = document.getElementById('error-text') as HTMLParagraphElement
   const reportContainer = document.getElementById('report-container') as HTMLDivElement
 
+  function escapeHtml(s: string): string {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+  }
+
   function getScoreClass(score: number): string {
     if (score > 7) return 'good'
     if (score >= 4) return 'ok'
@@ -265,7 +274,7 @@
       <div class="report">
         <div class="report-header card">
           <div>
-            <h2 class="report-repo">${r.repo}</h2>
+            <h2 class="report-repo">${escapeHtml(r.repo)}</h2>
             <p class="report-date">${fecha}</p>
           </div>
           <div class="report-score-total score-total-${totalCls}">
@@ -286,24 +295,24 @@
           </div>
           <div class="deuda-row">
             <span class="deuda-label">Deuda Tecnica</span>
-            <span class="badge ${getBadgeClass(r.deudaTecnica)}">${r.deudaTecnica}</span>
+            <span class="badge ${getBadgeClass(r.deudaTecnica)}">${escapeHtml(r.deudaTecnica)}</span>
           </div>
         </div>
 
         <div class="report-details">
           <div class="card rsc rsc-risk">
             <h3 class="rsc-title">⚠️ Top 3 Riesgos</h3>
-            <ol class="rsc-list">${r.riesgos.map((i: string) => `<li class="rsc-item">${i}</li>`).join('')}</ol>
+            <ol class="rsc-list">${r.riesgos.map((i: string) => `<li class="rsc-item">${escapeHtml(i)}</li>`).join('')}</ol>
           </div>
           <div class="card rsc rsc-strength">
             <h3 class="rsc-title">✅ Top 3 Fortalezas</h3>
-            <ol class="rsc-list">${r.fortalezas.map((i: string) => `<li class="rsc-item">${i}</li>`).join('')}</ol>
+            <ol class="rsc-list">${r.fortalezas.map((i: string) => `<li class="rsc-item">${escapeHtml(i)}</li>`).join('')}</ol>
           </div>
         </div>
 
         <div class="report-recommendation card">
           <h3 class="section-title">💡 Recomendacion al Inversor</h3>
-          <p class="recommendation-text">${r.recomendacion}</p>
+          <p class="recommendation-text">${escapeHtml(r.recomendacion)}</p>
         </div>
       </div>
     `
