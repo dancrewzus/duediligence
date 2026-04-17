@@ -1,8 +1,16 @@
-import { Agent, McpClient } from '@strands-agents/sdk'
+import { Agent, FileStorage, McpClient, SessionManager } from '@strands-agents/sdk'
 import { OpenAIModel } from '@strands-agents/sdk/models/openai'
+import { resolve } from 'node:path'
 import { analyzeRepoStructure } from './tools/github-analyzer.js'
 import { saveAnalysis, getPortfolio, loadPortfolio } from './session/portfolio.js'
 import { createGitHubMcp } from './mcp/github-mcp.js'
+
+export const SESSIONS_DIR = resolve(process.cwd(), 'sesiones')
+
+// SDK only accepts [a-z0-9_-]+ as sessionId; normalize owner/repo accordingly.
+export function repoSessionId(owner: string, repo: string): string {
+  return `${owner}__${repo}`.toLowerCase().replace(/[^a-z0-9_-]/g, '-')
+}
 
 const SYSTEM_PROMPT = `Eres un CTO senior con 15 años de experiencia evaluando startups para fondos de inversión.
 Tu trabajo es realizar due diligence técnico de repositorios de GitHub y emitir un reporte de inversión estructurado.
@@ -98,18 +106,41 @@ CHECKLIST antes de emitir el JSON final:
 - ¿"riesgos" y "fortalezas" tienen exactamente 3 elementos cada uno?
 Si alguna respuesta es no, corregí antes de emitir.`
 
+const CHAT_SYSTEM_PROMPT = `Eres un CTO senior con 15 años de experiencia evaluando startups.
+
+CONTEXTO: En turnos anteriores de esta conversación aparece un bloque \`\`\`json con el reporte de due diligence completo. Ese reporte YA FUE ENTREGADO — no lo repitas, no lo reescribas, no emitas otro JSON. El inversor ya lo tiene.
+
+AHORA ESTÁS EN MODO CONVERSACIÓN. Reglas absolutas:
+- PROHIBIDO emitir bloques \`\`\`json, \`\`\`, o cualquier formato estructurado tipo schema. Si tu respuesta empieza con \`{\` o \`\`\`\`, está mal.
+- Respondé SIEMPRE en prosa natural en español, en 2 a 5 oraciones. Podés usar listas markdown con guiones si aclaran.
+- El reporte ya está en tu memoria — usalo como fuente, pero respondé a la pregunta específica del usuario, no resumas todo el reporte.
+- No llames tools salvo que la pregunta exija datos nuevos que no tengas.
+- Tono directo, técnico, objetivo. No suavices problemas.
+
+Si tu primer impulso es escribir \`\`\`json, detenete: estás en modo conversación.`
+
+function buildPortfolioContext(): string {
+  const portfolio = loadPortfolio()
+  return portfolio.length > 0
+    ? `\n\nPortafolio actual (${portfolio.length} análisis previos):\n${JSON.stringify(portfolio, null, 2)}`
+    : '\n\nPortafolio vacío — no hay análisis previos.'
+}
+
+export function chatSystemPrompt(): string {
+  return CHAT_SYSTEM_PROMPT + buildPortfolioContext()
+}
+
 export interface AgentContext {
   agent: Agent
   mcpClient: McpClient | null
 }
 
-export async function createAgent(): Promise<AgentContext> {
-  const portfolio = loadPortfolio()
+export function createMcp(): Promise<McpClient | null> {
+  return createGitHubMcp()
+}
 
-  const portfolioContext =
-    portfolio.length > 0
-      ? `\n\nPortafolio actual (${portfolio.length} análisis previos):\n${JSON.stringify(portfolio, null, 2)}`
-      : '\n\nPortafolio vacío — no hay análisis previos.'
+export function buildAgent(mcpClient: McpClient | null, sessionId?: string): Agent {
+  const portfolioContext = buildPortfolioContext()
 
   // Ollama expone una API compatible con OpenAI en /v1 — usamos OpenAIModel apuntado al host local.
   // apiKey es dummy: Ollama no valida pero el cliente OpenAI requiere un string no vacio.
@@ -125,8 +156,6 @@ export async function createAgent(): Promise<AgentContext> {
     },
   })
 
-  const mcpClient = await createGitHubMcp()
-
   const tools: (typeof analyzeRepoStructure | typeof saveAnalysis | typeof getPortfolio | McpClient)[] = [
     analyzeRepoStructure,
     saveAnalysis,
@@ -136,11 +165,20 @@ export async function createAgent(): Promise<AgentContext> {
     tools.push(mcpClient)
   }
 
-  const agent = new Agent({
+  const sessionManager = sessionId
+    ? new SessionManager({ sessionId, storage: { snapshot: new FileStorage(SESSIONS_DIR) } })
+    : undefined
+
+  return new Agent({
     model,
     systemPrompt: SYSTEM_PROMPT + portfolioContext,
     tools,
+    sessionManager,
   })
+}
 
+export async function createAgent(): Promise<AgentContext> {
+  const mcpClient = await createMcp()
+  const agent = buildAgent(mcpClient)
   return { agent, mcpClient }
 }
