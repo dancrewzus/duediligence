@@ -36,10 +36,11 @@ export interface ScoreDimension {
 export interface AnalysisScores {
   stackArquitectura: ScoreDimension
   calidadCodigo: ScoreDimension
-  escalabilidad: ScoreDimension
-  saludEquipo: ScoreDimension
+  documentacionDx: ScoreDimension
+  mantenimientoActividad: ScoreDimension
   seguridad: ScoreDimension
   madurezDependencias: ScoreDimension
+  testingCicd: ScoreDimension
 }
 
 export interface TechStack {
@@ -64,6 +65,8 @@ export interface RepoMetrics {
   edadProyecto: string
 }
 
+export type Veredicto = 'Adoptar' | 'Usar con cautela' | 'Solo referencia' | 'Evitar'
+
 export interface AnalysisReport {
   repo: string
   descripcion: string
@@ -74,15 +77,16 @@ export interface AnalysisReport {
   deudaTecnica: 'Alta' | 'Media' | 'Baja'
   deudaJustificacion: string
   scoreTotal: number
-  riesgos: string[]
+  banderas: string[]
   fortalezas: string[]
-  recomendacion: string
-  resumen: string
+  veredicto: Veredicto
+  veredictoDetalle: string
+  sintesisTecnica: string
 }
 
 export interface PortfolioEntry {
   repo: string
   fecha: string
   score: number
-  resumen: string
+  sintesisTecnica: string
 }
