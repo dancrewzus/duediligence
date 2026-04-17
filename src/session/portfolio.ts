@@ -24,8 +24,8 @@ export const saveAnalysis = tool({
   description: 'Save a completed analysis to the portfolio. Call this after generating a due diligence report.',
   inputSchema: z.object({
     repo: z.string().describe('Full repo name owner/repo'),
-    score: z.number().describe('Overall investment score 0-10'),
-    resumen: z.string().describe('Brief summary of the analysis in Spanish'),
+    score: z.number().describe('Overall technical score 0-10'),
+    sintesisTecnica: z.string().describe('Brief technical synthesis of the analysis in Spanish'),
   }),
   callback: (input) => {
     const portfolio = loadPortfolio()
@@ -33,7 +33,7 @@ export const saveAnalysis = tool({
       repo: input.repo,
       fecha: new Date().toISOString(),
       score: input.score,
-      resumen: input.resumen,
+      sintesisTecnica: input.sintesisTecnica,
     }
     portfolio.push(entry)
     savePortfolio(portfolio)
@@ -47,7 +47,7 @@ export function persistReport(report: AnalysisReport): void {
     repo: report.repo,
     fecha: new Date().toISOString(),
     score: report.scoreTotal,
-    resumen: report.resumen,
+    sintesisTecnica: report.sintesisTecnica,
   })
   writeFileSync(PORTFOLIO_PATH, JSON.stringify(portfolio, null, 2), 'utf-8')
 }
