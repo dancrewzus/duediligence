@@ -16,6 +16,7 @@ FORMATO DE RESPUESTA FINAL (regla absoluta):
 Tu última respuesta —después de todas las tool calls— DEBE ser ÚNICAMENTE un bloque de código con la etiqueta \`\`\`json ... \`\`\`, sin texto antes y sin texto después. Nada de prosa, nada de explicaciones, nada de resúmenes fuera del JSON. Solo el bloque JSON.
 
 SCHEMA EXACTO del JSON (todos los campos son obligatorios, nombres exactos, tipos exactos):
+- descripcion: string OBLIGATORIO, NUNCA null, NUNCA omitir. 1-3 oraciones (máximo 500 caracteres) explicando QUÉ ES el proyecto desde el punto de vista funcional — qué hace, para quién, en qué categoría encaja. Esta descripción es lo PRIMERO que lee el inversor; debe poder entender el proyecto sin mirar nada más. Fuentes, en orden de preferencia: (1) metadata.description de analyze_repo_structure si existe y es informativa, (2) README.md, (3) package.json description, (4) infiere desde dependencias y estructura. No copies slogans de marketing vacíos; sé concreto.
 - scores: objeto con 6 claves (stackArquitectura, calidadCodigo, escalabilidad, saludEquipo, seguridad, madurezDependencias). Cada una es { score: number entre 0 y 10, justificacion: string corto }.
 - tecnologias: objeto con 6 claves (frontend, backend, database, infraestructura, testing, cicd). Cada una es un string[] con los nombres + versiones detectados.
 - metricas: objeto con 10 claves numéricas y de texto exactamente como en el ejemplo.
@@ -25,7 +26,7 @@ SCHEMA EXACTO del JSON (todos los campos son obligatorios, nombres exactos, tipo
 - riesgos: string[] con exactamente 3 elementos.
 - fortalezas: string[] con exactamente 3 elementos.
 - recomendacion: string (2-3 oraciones dirigidas al inversor).
-- resumen: string corto (una oración).
+- resumen: string de 2-3 oraciones con la síntesis ejecutiva para inversor (qué tipo de proyecto es, señales clave, veredicto corto). No repitas los scores dimensión por dimensión.
 
 DEFAULTS CUANDO NO HAY DATO (nunca inventes):
 - Número no disponible → -1.
@@ -41,6 +42,7 @@ EJEMPLO DE RESPUESTA FINAL VÁLIDA (formato literal — responde siempre así):
 
 \`\`\`json
 {
+  "descripcion": "Framework web all-in-one para construir sitios content-driven (blogs, docs, marketing). Renderiza HTML estático por defecto con hydration selectiva por componente (islands), soportando React, Vue, Svelte y otros frameworks de UI dentro del mismo proyecto. Dirigido a equipos que priorizan performance y SEO sobre apps altamente interactivas.",
   "scores": {
     "stackArquitectura": { "score": 7, "justificacion": "Stack moderno (React 18, Node 20, TypeScript 5) con separación frontend/backend. Uso de Hono en lugar de Express es decisión actual pero añade riesgo de madurez." },
     "calidadCodigo": { "score": 6, "justificacion": "ESLint y Prettier configurados, tsconfig estricto. No hay suite de tests (sin jest/vitest/mocha en devDependencies)." },
@@ -83,11 +85,18 @@ EJEMPLO DE RESPUESTA FINAL VÁLIDA (formato literal — responde siempre así):
     "Dependencias actualizadas (<6 meses promedio)."
   ],
   "recomendacion": "Watch. Stack técnico sólido pero bus factor y ausencia de tests son riesgos serios para inversión. Antes de comprometer capital exigir: contratar al menos 1 ingeniero adicional y cobertura de tests >60% en 90 días.",
-  "resumen": "Proyecto joven con stack moderno, liderado por 1 solo desarrollador activo y sin tests; apto para watch, no para invertir aún."
+  "resumen": "Framework web orientado a sitios content-driven, con stack moderno (TypeScript estricto, linting). Liderado por 1 solo contributor activo y sin tests automáticos, lo que compromete continuidad y velocidad de iteración. Apto para watch, no para invertir aún hasta resolver bus factor y cobertura."
 }
 \`\`\`
 
-RECORDATORIO FINAL: tu última respuesta al usuario debe ser SOLO un bloque \`\`\`json { ... } \`\`\` siguiendo el schema de arriba. Sin prosa antes ni después. Si no seguís este formato exacto, el sistema no puede procesar la respuesta.`
+RECORDATORIO FINAL: tu última respuesta al usuario debe ser SOLO un bloque \`\`\`json { ... } \`\`\` siguiendo el schema de arriba. Sin prosa antes ni después. Si no seguís este formato exacto, el sistema no puede procesar la respuesta.
+
+CHECKLIST antes de emitir el JSON final:
+- ¿"descripcion" está presente, es un string no vacío, y explica qué ES el proyecto en ≤500 caracteres? (obligatorio)
+- ¿Los 6 scores están todos entre 0 y 10?
+- ¿"deudaTecnica" es exactamente "Alta", "Media" o "Baja"?
+- ¿"riesgos" y "fortalezas" tienen exactamente 3 elementos cada uno?
+Si alguna respuesta es no, corregí antes de emitir.`
 
 export interface AgentContext {
   agent: Agent

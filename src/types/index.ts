@@ -66,6 +66,7 @@ export interface RepoMetrics {
 
 export interface AnalysisReport {
   repo: string
+  descripcion: string
   fecha: string
   scores: AnalysisScores
   tecnologias: TechStack

@@ -4,8 +4,12 @@
 
 <div id="portfolio-section">
   <div class="portfolio-header">
-    <h1 class="portfolio-title">Portfolio de Analisis</h1>
-    <p class="portfolio-subtitle">Historial de startups evaluadas</p>
+    <div class="hero-pill">
+      <span class="hero-pill-dot"></span>
+      <span>Historial persistente</span>
+    </div>
+    <h1 class="portfolio-title">Portfolio de <span>Análisis</span></h1>
+    <p class="portfolio-subtitle">Historial de startups evaluadas — compara scores y evolución técnica.</p>
   </div>
 
   <div id="portfolio-loading" class="loading">
@@ -14,13 +18,34 @@
   </div>
 
   <div id="portfolio-empty" class="empty-state card" style="display: none;">
-    <p>No hay analisis previos. <a href="/">Analiza tu primera startup</a></p>
+    <div class="empty-icon" aria-hidden="true">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+    </div>
+    <p>No hay análisis previos. <a href="/">Analiza tu primera startup →</a></p>
   </div>
 
   <div id="portfolio-table-wrapper" style="display: none;">
     <div class="table-controls">
-      <button id="sort-score" class="btn-sort active">Ordenar por Score</button>
-      <button id="sort-date" class="btn-sort">Ordenar por Fecha</button>
+      <div class="sort-group">
+        <button id="sort-score" class="btn-sort active">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 3v18h18"/>
+            <path d="M7 14l4-4 4 4 5-5"/>
+          </svg>
+          <span>Por Score</span>
+        </button>
+        <button id="sort-date" class="btn-sort">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          <span>Por Fecha</span>
+        </button>
+      </div>
     </div>
     <div id="portfolio-list" class="portfolio-list"></div>
   </div>
@@ -28,48 +53,133 @@
 
 <style>
   .portfolio-header {
-    margin-bottom: 32px;
+    margin: 24px 0 40px;
+    animation: heroIn 0.8s var(--ease-out) both;
+  }
+
+  @keyframes heroIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .hero-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    margin-bottom: 18px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .hero-pill-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+    box-shadow: 0 0 10px var(--accent-cyan);
+    animation: pulseDot 2s ease-in-out infinite;
   }
 
   .portfolio-title {
-    font-size: 2rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    margin-bottom: 4px;
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    font-size: clamp(2rem, 4vw, 2.6rem);
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1.1;
+    margin-bottom: 8px;
+  }
+
+  .portfolio-title span {
+    background: var(--grad-primary);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: gradientShift 6s ease-in-out infinite;
+    display: inline-block;
+  }
+
+  @keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
   }
 
   .portfolio-subtitle {
     color: var(--text-secondary);
+    font-size: 1rem;
+    max-width: 560px;
   }
 
   .empty-state {
     text-align: center;
-    padding: 48px;
+    padding: 64px 32px;
     color: var(--text-secondary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .empty-icon {
+    width: 72px;
+    height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(110, 168, 255, 0.08);
+    border: 1px solid var(--border-subtle);
+    color: var(--accent-blue);
   }
 
   .table-controls {
     display: flex;
+    justify-content: flex-end;
     gap: 8px;
-    margin-bottom: 16px;
+    margin-bottom: 18px;
+  }
+
+  .sort-group {
+    display: inline-flex;
+    padding: 4px;
+    background: rgba(12, 12, 22, 0.5);
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
 
   .btn-sort {
-    padding: 8px 16px;
-    font-size: 0.8rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    font-size: 0.82rem;
     font-weight: 600;
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    color: var(--text-secondary);
+    font-family: inherit;
+    background: transparent;
+    border: none;
+    border-radius: 999px;
+    color: var(--text-muted);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.25s var(--ease-out);
   }
 
-  .btn-sort:hover,
+  .btn-sort:hover {
+    color: var(--text-primary);
+  }
+
   .btn-sort.active {
     color: var(--text-primary);
-    border-color: var(--accent-blue);
+    background: rgba(110, 168, 255, 0.15);
+    box-shadow: inset 0 0 0 1px rgba(110, 168, 255, 0.3), 0 0 12px rgba(110, 168, 255, 0.15);
   }
 
   .portfolio-list {
@@ -82,34 +192,83 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 20px 24px;
+    padding: 22px 26px;
     background: var(--bg-card);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius);
-    transition: all 0.2s;
+    box-shadow: var(--shadow-card);
+    transition: transform 0.3s var(--ease-out), border-color 0.3s var(--ease-out), background 0.3s var(--ease-out);
     cursor: default;
+    position: relative;
+    overflow: hidden;
+    opacity: 0;
+    animation: rowIn 0.5s var(--ease-out) forwards;
+  }
+
+  .portfolio-row:nth-child(1) { animation-delay: 0.04s; }
+  .portfolio-row:nth-child(2) { animation-delay: 0.1s; }
+  .portfolio-row:nth-child(3) { animation-delay: 0.16s; }
+  .portfolio-row:nth-child(4) { animation-delay: 0.22s; }
+  .portfolio-row:nth-child(5) { animation-delay: 0.28s; }
+  .portfolio-row:nth-child(n+6) { animation-delay: 0.32s; }
+
+  @keyframes rowIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .portfolio-row::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 20%;
+    bottom: 20%;
+    width: 3px;
+    background: transparent;
+    border-radius: 0 3px 3px 0;
+    transition: background 0.3s var(--ease-out), top 0.3s var(--ease-out), bottom 0.3s var(--ease-out);
   }
 
   .portfolio-row:hover {
     background: var(--bg-card-hover);
-    border-color: var(--border-active);
+    border-color: var(--border-strong);
+    transform: translateY(-2px);
+  }
+
+  .portfolio-row:hover::before {
+    background: var(--grad-primary);
+    top: 0;
+    bottom: 0;
   }
 
   .portfolio-row-info {
     flex: 1;
+    min-width: 0;
   }
 
   .portfolio-row-repo {
+    font-family: 'Space Grotesk', 'Inter', sans-serif;
     font-weight: 700;
-    font-size: 1rem;
+    font-size: 1.05rem;
     margin-bottom: 4px;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .portfolio-row-meta {
     display: flex;
-    gap: 16px;
-    font-size: 0.8rem;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.78rem;
     color: var(--text-muted);
+  }
+
+  .portfolio-row-meta svg {
+    flex-shrink: 0;
   }
 
   .portfolio-row-summary {
@@ -117,15 +276,37 @@
     font-size: 0.85rem;
     color: var(--text-secondary);
     padding: 0 24px;
-    line-height: 1.5;
+    line-height: 1.55;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   .portfolio-row-score {
-    font-size: 1.5rem;
-    font-weight: 800;
+    font-family: 'Space Grotesk', 'Inter', sans-serif;
+    font-size: 1.75rem;
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
-    min-width: 60px;
+    letter-spacing: -0.03em;
+    min-width: 70px;
     text-align: right;
+    filter: drop-shadow(0 0 14px currentColor);
+  }
+
+  @media (max-width: 768px) {
+    .portfolio-row {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .portfolio-row-summary {
+      padding: 0;
+      flex: none;
+    }
+    .portfolio-row-score {
+      align-self: flex-end;
+    }
   }
 </style>
 
@@ -177,12 +358,13 @@
           month: 'short',
           day: 'numeric',
         })
+        const calIcon = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`
         return `
           <div class="portfolio-row">
             <div class="portfolio-row-info">
               <div class="portfolio-row-repo">${escapeHtml(item.repo)}</div>
               <div class="portfolio-row-meta">
-                <span>${fecha}</span>
+                ${calIcon}<span>${fecha}</span>
               </div>
             </div>
             <div class="portfolio-row-summary">${escapeHtml(item.resumen)}</div>

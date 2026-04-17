@@ -12,37 +12,43 @@ const { title, activePage = 'analyze' } = Astro.props
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#07070d" />
     <title>{title} | Due Diligence Técnico</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
-    <div class="container">
-      <nav class="nav">
+    <div class="aurora" aria-hidden="true"><span></span></div>
+    <div class="grid-overlay" aria-hidden="true"></div>
+    <nav class="nav">
+      <div class="nav-inner">
         <div class="nav-brand">Due Diligence <span>Técnico</span></div>
         <div class="nav-links">
           <a href="/" class={activePage === 'analyze' ? 'active' : ''}>Analizar</a>
           <a href="/portfolio" class={activePage === 'portfolio' ? 'active' : ''}>Portfolio</a>
         </div>
-      </nav>
-      <main class="main">
-        <slot />
-      </main>
-      <footer class="site-footer">
+      </div>
+    </nav>
+    <main class="container main">
+      <slot />
+    </main>
+    <footer class="site-footer">
+      <div class="site-footer-inner">
         <p>
-          Due Diligence Técnico — desarrollado por
+          Desarrollado por
           <a href="https://github.com/dancrewzus" target="_blank" rel="noopener">Daniel Rodríguez</a>
-          para el challenge <em>"Construye con Strands Agents"</em> de AWS en
-          <strong>Nerdearla Chile 2026</strong>.
+          · challenge <em>"Construye con Strands Agents"</em> — AWS ·
+          <strong>Nerdearla Chile 2026</strong>
         </p>
-        <p class="site-footer-links">
-          <a href="https://github.com/dancrewzus/duediligence" target="_blank" rel="noopener">
-            Ver en GitHub →
-          </a>
-        </p>
-      </footer>
-    </div>
+        <a class="site-footer-link" href="https://github.com/dancrewzus/duediligence" target="_blank" rel="noopener">
+          GitHub →
+        </a>
+      </div>
+    </footer>
   </body>
 </html>
 

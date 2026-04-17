@@ -13,12 +13,20 @@ const { report } = Astro.props
 const scoreTotalColor = report.scoreTotal > 7 ? 'good' : report.scoreTotal >= 4 ? 'ok' : 'bad'
 const deudaClass = report.deudaTecnica === 'Baja' ? 'green' : report.deudaTecnica === 'Media' ? 'yellow' : 'red'
 const fecha = new Date(report.fecha).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })
+
+const MAX_DESCRIPCION = 500
+const descripcion = report.descripcion?.trim()
+  ? report.descripcion.length > MAX_DESCRIPCION
+    ? report.descripcion.slice(0, MAX_DESCRIPCION - 1).trimEnd() + '…'
+    : report.descripcion
+  : null
 ---
 
 <div class="report">
   <div class="report-header card">
     <div class="report-header-info">
       <h2 class="report-repo">{report.repo}</h2>
+      {descripcion && <p class="report-description">{descripcion}</p>}
       <p class="report-date">{fecha}</p>
     </div>
     <div class={`report-score-total score-total-${scoreTotalColor}`}>
@@ -88,11 +96,20 @@ const fecha = new Date(report.fecha).toLocaleDateString('es-CL', { year: 'numeri
     letter-spacing: -0.02em;
   }
 
+  .report-description {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-top: 6px;
+    max-width: 64ch;
+  }
+
   .report-date {
     color: var(--text-muted);
     font-size: 0.85rem;
     margin-top: 4px;
   }
+
 
   .report-score-total {
     display: flex;

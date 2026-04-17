@@ -5,3 +5,7 @@ portfolio.json
 web/node_modules/
 web/dist/
 web/.astro/
+
+# Local tooling artifacts
+.claude/
+.playwright-mcp/
