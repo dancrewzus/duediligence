@@ -44,6 +44,7 @@ app.get('/api/analyze/stream', async (c) => {
       stream.writeSSE({ event: 'stage', data: JSON.stringify({ stage, label: STAGE_LABELS[stage] }) })
 
     try {
+      const startedAt = Date.now()
       const mcpClient = await getSharedMcp()
       const sessionId = repoSessionId(parsed.owner, parsed.repo)
 
@@ -152,6 +153,7 @@ app.get('/api/analyze/stream', async (c) => {
       }
 
       if (report) {
+        report.duracionMs = Date.now() - startedAt
         report.repo = `${parsed.owner}/${parsed.repo}`
         report.fecha = new Date().toISOString()
         await stream.writeSSE({ event: 'report', data: JSON.stringify(report) })
