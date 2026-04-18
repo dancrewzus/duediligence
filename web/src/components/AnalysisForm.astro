@@ -969,10 +969,11 @@
           <div class="scores-grid">
             ${renderScoreBar('Stack & Arquitectura', r.scores.stackArquitectura)}
             ${renderScoreBar('Calidad de código', r.scores.calidadCodigo)}
-            ${renderScoreBar('Escalabilidad', r.scores.escalabilidad)}
-            ${renderScoreBar('Salud del equipo', r.scores.saludEquipo)}
+            ${renderScoreBar('Documentación & DX', r.scores.documentacionDx)}
+            ${renderScoreBar('Mantenimiento & Actividad', r.scores.mantenimientoActividad)}
             ${renderScoreBar('Seguridad', r.scores.seguridad)}
             ${renderScoreBar('Madurez de dependencias', r.scores.madurezDependencias)}
+            ${renderScoreBar('Testing & CI/CD', r.scores.testingCicd)}
           </div>
           <div class="deuda-row">
             <div class="deuda-left">
@@ -984,8 +985,8 @@
         </div>
         <div class="report-details">
           <div class="card rsc rsc-risk">
-            <h3 class="rsc-title">Top 3 Riesgos</h3>
-            <ol class="rsc-list">${r.riesgos.map((i: string) => `<li class="rsc-item">${escapeHtml(i)}</li>`).join('')}</ol>
+            <h3 class="rsc-title">Banderas</h3>
+            <ol class="rsc-list">${r.banderas.map((i: string) => `<li class="rsc-item">${escapeHtml(i)}</li>`).join('')}</ol>
           </div>
           <div class="card rsc rsc-strength">
             <h3 class="rsc-title">Top 3 Fortalezas</h3>
