@@ -1,6 +1,6 @@
 import { Agent, FileStorage, McpClient, SessionManager } from '@strands-agents/sdk'
 import { OpenAIModel } from '@strands-agents/sdk/models/openai'
-import { AnthropicModel } from '@strands-agents/sdk/models/anthropic'
+import { BedrockModel } from '@strands-agents/sdk/models/bedrock'
 import { resolve } from 'node:path'
 import { analyzeRepoStructure } from './tools/github-analyzer.js'
 import { saveAnalysis, getPortfolio, loadPortfolio } from './session/portfolio.js'
@@ -165,26 +165,27 @@ export function createMcp(): Promise<McpClient | null> {
 function buildModel() {
   const provider = (process.env.MODEL_PROVIDER || 'ollama').toLowerCase()
 
-  if (provider === 'anthropic') {
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) {
-      throw new Error(
-        'MODEL_PROVIDER=anthropic requiere ANTHROPIC_API_KEY en el entorno. ' +
-          'Conseguí una en https://console.anthropic.com/settings/keys y agregala al .env.'
-      )
+  if (provider === 'bedrock') {
+    const options: {
+      modelId: string
+      region: string
+      temperature: number
+      apiKey?: string
+    } = {
+      modelId: process.env.BEDROCK_MODEL || 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+      region: process.env.AWS_REGION || 'us-east-1',
+      temperature: 0.1,
     }
-    return new AnthropicModel({
-      modelId: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
-      apiKey,
-      params: {
-        temperature: 0.1,
-      },
-    })
+    const apiKey = process.env.BEDROCK_API_KEY
+    if (apiKey) {
+      options.apiKey = apiKey
+    }
+    return new BedrockModel(options)
   }
 
   if (provider !== 'ollama') {
     throw new Error(
-      `MODEL_PROVIDER="${provider}" no soportado. Valores válidos: "ollama", "anthropic".`
+      `MODEL_PROVIDER="${provider}" no soportado. Valores válidos: "ollama", "bedrock".`
     )
   }
 
