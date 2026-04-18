@@ -1218,3 +1218,159 @@ Verificar:
 - [ ] Reporte completo llega en ~20-40 segundos (latencia aceptable de Sonnet).
 
 Si el reporte es coherente, el fix validó. Si seguís viendo alucinaciones con Sonnet, hay un bug más profundo en la tool (no el modelo) — escalate.
+
+---
+
+## Task 17: Reemplazar Anthropic API por AWS Bedrock
+
+Durante el smoke test de Task 16 el usuario optó por no usar Anthropic API y migrar a AWS Bedrock. Task 17 revierte la integración de Anthropic y agrega Bedrock en su lugar, manteniendo el feature flag `MODEL_PROVIDER=ollama|bedrock`.
+
+**Por qué Bedrock en vez de Anthropic API:**
+- Billing unificado via AWS (no hay que manejar cuenta extra en console.anthropic.com).
+- Misma calidad de modelo (Claude Sonnet 4.5 corre idéntico en ambas).
+- `@aws-sdk/client-bedrock-runtime` ya está instalado como dep transitiva de Strands SDK — cero instalaciones nuevas.
+
+**Auth de Bedrock:** el provider soporta dos modos:
+1. **API key (bearer token)** — si definís `BEDROCK_API_KEY`, se usa directo. Setup más simple (generar la key en AWS console).
+2. **SigV4 (credenciales AWS estándar)** — si no hay `BEDROCK_API_KEY`, el SDK resuelve credenciales del entorno: `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`, `~/.aws/credentials`, o IAM role.
+
+El código no elige — pasamos `apiKey` si existe, y sino dejamos que el cliente resuelva SigV4 solo. Si no hay ningún auth configurado, AWS devuelve un error claro al primer request.
+
+**Modelo default:** `us.anthropic.claude-sonnet-4-5-20250929-v1:0` (inference profile cross-region US). Requiere que el usuario tenga acceso al modelo habilitado en la consola de Bedrock (one-click en us-east-1).
+
+**Files:**
+- Modify: `package.json` — quitar `@anthropic-ai/sdk`
+- Modify: `src/agent.ts` — quitar branch `anthropic`, agregar branch `bedrock`
+- Modify: `.env.example` — reemplazar vars Anthropic por vars Bedrock
+- Modify: `CLAUDE.md` — actualizar docs de provider
+
+- [ ] **Step 1: Desinstalar `@anthropic-ai/sdk`**
+
+```bash
+npm uninstall @anthropic-ai/sdk
+```
+
+Expected: `package.json` y `package-lock.json` actualizados, la dep desaparece.
+
+- [ ] **Step 2: Swap del branch en `src/agent.ts`**
+
+En `src/agent.ts`:
+
+**a)** Quitar la línea de import:
+```typescript
+import { AnthropicModel } from '@strands-agents/sdk/models/anthropic'
+```
+
+**b)** Agregar el import de `BedrockModel`:
+```typescript
+import { BedrockModel } from '@strands-agents/sdk/models/bedrock'
+```
+
+**c)** En `buildModel()`, reemplazar el branch `anthropic` completo por:
+
+```typescript
+  if (provider === 'bedrock') {
+    const options: {
+      modelId: string
+      region: string
+      temperature: number
+      apiKey?: string
+    } = {
+      modelId: process.env.BEDROCK_MODEL || 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+      region: process.env.AWS_REGION || 'us-east-1',
+      temperature: 0.1,
+    }
+    const apiKey = process.env.BEDROCK_API_KEY
+    if (apiKey) {
+      options.apiKey = apiKey
+    }
+    return new BedrockModel(options)
+  }
+```
+
+**d)** Actualizar el error handler del provider desconocido:
+
+```typescript
+  if (provider !== 'ollama') {
+    throw new Error(
+      `MODEL_PROVIDER="${provider}" no soportado. Valores válidos: "ollama", "bedrock".`
+    )
+  }
+```
+
+El resto de `buildModel()` (branch Ollama) queda igual.
+
+**Notas**:
+- `BedrockModel` acepta `temperature` y `topP` como propiedades top-level (no en `params` como `AnthropicModel`). Consultá `node_modules/@strands-agents/sdk/dist/src/models/bedrock.d.ts` si hay dudas.
+- No validamos presencia de credenciales AWS: si no hay API key ni SigV4 resuelve, el SDK falla con error explícito al primer request. Mejor que validar por nuestra cuenta (no sabemos si el user tiene IAM role, SSO, etc.).
+- El `apiKey` se asigna condicional porque pasar `undefined` explícito puede hacer que el cliente intente bearer auth con token vacío.
+
+- [ ] **Step 3: Verificar tipado**
+
+```bash
+npx tsc --noEmit
+```
+
+Expected: clean.
+
+- [ ] **Step 4: Actualizar `.env.example`**
+
+Reemplazar el bloque Anthropic que agregaste en Task 16 (líneas tipo `MODEL_PROVIDER=ollama`, `ANTHROPIC_API_KEY=`, `ANTHROPIC_MODEL=...`) por:
+
+```
+# Model provider: "ollama" (default) o "bedrock"
+MODEL_PROVIDER=ollama
+
+# AWS Bedrock (solo si MODEL_PROVIDER=bedrock)
+# Auth: definí BEDROCK_API_KEY (bearer) o usá credenciales AWS estándar (AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY, o ~/.aws/credentials, o IAM role).
+# Requiere acceso habilitado al modelo en https://console.aws.amazon.com/bedrock/home#/modelaccess
+AWS_REGION=us-east-1
+BEDROCK_API_KEY=
+BEDROCK_MODEL=us.anthropic.claude-sonnet-4-5-20250929-v1:0
+```
+
+- [ ] **Step 5: Actualizar `CLAUDE.md`**
+
+En la sección "Stack y comandos", reemplazar el bullet de Anthropic (el sub-bullet con `AnthropicModel` que agregaste en Task 16) por:
+
+```
+  - `bedrock` — `BedrockModel` con Claude Sonnet 4.5 (default `us.anthropic.claude-sonnet-4-5-20250929-v1:0`). Auth vía `BEDROCK_API_KEY` (bearer) o credenciales AWS estándar. Billing y governance unificados con AWS; requiere habilitar acceso al modelo en la consola de Bedrock.
+```
+
+En el bloque de variables de entorno, reemplazar `ANTHROPIC_API_KEY` y `ANTHROPIC_MODEL` por:
+
+```
+AWS_REGION=us-east-1                         # solo si MODEL_PROVIDER=bedrock
+BEDROCK_API_KEY=                             # opcional: bearer token; si no, se usa SigV4
+BEDROCK_MODEL=us.anthropic.claude-sonnet-4-5-20250929-v1:0  # opcional, default ya apunta a Sonnet 4.5
+```
+
+Y en el prerequisito:
+
+```
+Prerequisito (solo si `MODEL_PROVIDER=ollama`): tener Ollama corriendo (`ollama serve`) con un modelo descargado (`ollama pull llama3.1`). Si usás `MODEL_PROVIDER=bedrock`, no hace falta Ollama — pero necesitás acceso habilitado al modelo en la consola de Bedrock y credenciales AWS configuradas.
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add package.json package-lock.json src/agent.ts .env.example CLAUDE.md
+git commit -m "feat(agent): reemplazar Anthropic API por AWS Bedrock (Claude Sonnet 4.5)"
+```
+
+- [ ] **Step 7: Smoke test con Bedrock**
+
+Editá tu `.env` local:
+```
+MODEL_PROVIDER=bedrock
+AWS_REGION=us-east-1
+BEDROCK_API_KEY=<tu bearer key>    # o dejalo vacío y configurá AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY
+```
+
+Reiniciar el backend. Re-analizar `https://github.com/nextlevelbuilder/ui-ux-pro-max-skill`. Verificar:
+- [ ] `descripcion` coherente con el README.
+- [ ] `ultimoCommitHace` exacto (no alucina).
+- [ ] Chat responde sobre el repo, no describe el agente.
+- [ ] Latencia razonable (~20-40s).
+
+Si ves un error 400/403, chequeá que el modelo esté habilitado en tu cuenta de Bedrock (https://console.aws.amazon.com/bedrock/home#/modelaccess) y que la región del `AWS_REGION` coincide con donde tenés el acceso.
