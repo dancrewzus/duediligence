@@ -26,7 +26,7 @@ FORMATO DE RESPUESTA FINAL (regla absoluta):
 Tu última respuesta —después de todas las tool calls— DEBE ser ÚNICAMENTE un bloque de código con la etiqueta \`\`\`json ... \`\`\`, sin texto antes y sin texto después. Nada de prosa, nada de explicaciones, nada de resúmenes fuera del JSON. Solo el bloque JSON.
 
 SCHEMA EXACTO del JSON (todos los campos son obligatorios, nombres exactos, tipos exactos):
-- descripcion: string OBLIGATORIO, NUNCA null, NUNCA omitir. 1-3 oraciones (máximo 500 caracteres) explicando QUÉ ES el proyecto desde el punto de vista funcional — qué hace, para quién, en qué categoría encaja. Esta descripción es lo PRIMERO que lee el dev; debe poder entender el proyecto sin mirar nada más. Fuentes, en orden de preferencia: (1) metadata.description de analyze_repo_structure si existe y es informativa, (2) README.md, (3) package.json description, (4) infiere desde dependencias y estructura. No copies slogans de marketing vacíos; sé concreto.
+- descripcion: string OBLIGATORIO, NUNCA null, NUNCA omitir. 1-3 oraciones (máximo 500 caracteres) explicando QUÉ ES el proyecto desde el punto de vista funcional — qué hace, para quién, en qué categoría encaja. Esta descripción es lo PRIMERO que lee el dev; debe poder entender el proyecto sin mirar nada más. Fuentes, en orden de preferencia: (1) readmeContent de analyze_repo_structure si es informativo — leelo de verdad, no lo ignores, (2) metadata.description si readmeContent está vacío o es pobre, (3) package.json description, (4) inferencia desde dependencias y estructura SOLO como último recurso. No copies slogans de marketing vacíos; sé concreto.
 - scores: objeto con 7 claves (stackArquitectura, calidadCodigo, documentacionDx, mantenimientoActividad, seguridad, madurezDependencias, testingCicd). Cada una es { score: number entre 0 y 10, justificacion: string corto }.
 - tecnologias: objeto con 6 claves (frontend, backend, database, infraestructura, testing, cicd). Cada una es un string[] con los nombres + versiones detectados.
 - metricas: objeto con 10 claves numéricas y de texto exactamente como en el ejemplo.
@@ -42,7 +42,7 @@ SCHEMA EXACTO del JSON (todos los campos son obligatorios, nombres exactos, tipo
 EVIDENCIA REQUERIDA POR DIMENSIÓN (citá datos concretos en cada justificacion):
 - stackArquitectura: framework + versión, estructura de carpetas, decisiones de arquitectura visibles (monorepo, DI, etc.).
 - calidadCodigo: ESLint/Prettier/tsconfig strict presentes, tipado, tamaño del codebase, nombres de archivos.
-- documentacionDx: README presente, longitud útil (no vacío), quickstart, ejemplos de código, API docs, CONTRIBUTING.md, changelog, badges.
+- documentacionDx: README presente y su calidad real (leé readmeContent — ¿tiene quickstart?, ¿ejemplos de código?, ¿explica la API?, ¿o es solo un título y badges?). Presencia de CONTRIBUTING.md, changelog.
 - mantenimientoActividad: antigüedad del último commit, frecuencia de releases, issuesAbiertos vs commits recientes como proxy de respuesta, contributors activos en 30d.
 - seguridad: Dependabot/Renovate configurado, SAST, secrets en repo, dependencias con CVEs conocidos.
 - madurezDependencias: cantidad de deps runtime, antigüedad promedio de versiones, libs deprecadas.

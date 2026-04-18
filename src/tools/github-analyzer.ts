@@ -4,6 +4,7 @@ import axios from 'axios'
 import type { RepoStructure, RepoMetadata } from '../types/index.js'
 
 const GITHUB_API = 'https://api.github.com'
+const README_SNIPPET_MAX = 8000
 
 function githubHeaders(): Record<string, string> {
   const token = process.env.GITHUB_PERSONAL_ACCESS_TOKEN
@@ -105,6 +106,7 @@ export const analyzeRepoStructure = tool({
       tsconfig: tsconfigRaw ? JSON.parse(tsconfigRaw) : null,
       hasReadme: readmeRaw !== null,
       readmeLength: readmeRaw?.length ?? 0,
+      readmeContent: readmeRaw ? readmeRaw.slice(0, README_SNIPPET_MAX) : null,
       hasEslint,
       hasPrettier,
       hasDockerfile,

@@ -20,6 +20,7 @@ export interface RepoStructure {
   tsconfig: Record<string, unknown> | null
   hasReadme: boolean
   readmeLength: number
+  readmeContent: string | null
   hasEslint: boolean
   hasPrettier: boolean
   hasDockerfile: boolean
