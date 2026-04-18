@@ -1374,3 +1374,242 @@ Reiniciar el backend. Re-analizar `https://github.com/nextlevelbuilder/ui-ux-pro
 - [ ] Latencia razonable (~20-40s).
 
 Si ves un error 400/403, chequeá que el modelo esté habilitado en tu cuenta de Bedrock (https://console.aws.amazon.com/bedrock/home#/modelaccess) y que la región del `AWS_REGION` coincide con donde tenés el acceso.
+
+---
+
+## Task 18: Selector de provider en el frontend
+
+Hoy `MODEL_PROVIDER` se define en el `.env` y al reiniciar. El pill del hero dice "Strands Agents · Ollama local" estático — ni refleja lo que realmente está corriendo, ni permite cambiar sin reiniciar. Fix: convertir el pill en un `<select>` con opciones Ollama / Bedrock, pasar el valor elegido como query param en los endpoints de analyze y chat, y persistir la elección en `localStorage`.
+
+**Diseño:**
+- UI: reemplazar el segundo span del `.hero-pill` por un `<select>` nativo estilizado con `appearance: none`. Dos opciones: `Ollama local` (value=`ollama`), `AWS Bedrock` (value=`bedrock`). Estética idéntica al pill actual — mismo font, color, border, dot.
+- Estado: el `.env` `MODEL_PROVIDER` sigue siendo el default del server. El frontend arranca seleccionando `ollama` salvo que `localStorage.modelProvider` tenga otro valor guardado de una sesión anterior. Cada cambio de select guarda a localStorage.
+- API: agregar query param opcional `?provider=ollama|bedrock` en `/api/analyze/stream` y `/api/chat/stream`. Si el param llega, el server lo usa como override para esa request; si no llega, se cae al env var (compat con CLI).
+- Propagación: el valor del select al hacer "Analizar" se snapshotea (guardado en una variable del front) — el chat subsecuente usa ese mismo valor aunque el user cambie el select después, para no mezclar providers en la misma sesión analizada.
+
+**Files:**
+- Modify: `src/agent.ts` — `buildModel(providerOverride?)` y `buildAgent(mcpClient, sessionId?, providerOverride?)`
+- Modify: `src/server.ts` — leer `provider` query param en ambos endpoints y pasarlo a `buildAgent`
+- Modify: `web/src/components/AnalysisForm.astro` — replace pill, wire select, propagate on requests
+
+- [ ] **Step 1: `buildModel` y `buildAgent` aceptan override**
+
+En `src/agent.ts`, cambiar la firma de `buildModel`:
+
+```typescript
+function buildModel(providerOverride?: string) {
+  const provider = (providerOverride || process.env.MODEL_PROVIDER || 'ollama').toLowerCase()
+  // ... resto igual
+}
+```
+
+Y cambiar `buildAgent` para que acepte y propague:
+
+```typescript
+export function buildAgent(mcpClient: McpClient | null, sessionId?: string, providerOverride?: string): Agent {
+  const portfolioContext = buildPortfolioContext()
+
+  const model = buildModel(providerOverride)
+  // ... resto igual
+}
+```
+
+- [ ] **Step 2: Endpoints leen `provider` query param**
+
+En `src/server.ts`, en el handler de `/api/analyze/stream`:
+
+Encontrar la línea que construye el agent:
+```typescript
+      const agent = buildAgent(mcpClient, sessionId)
+```
+
+Reemplazar por:
+```typescript
+      const provider = c.req.query('provider')
+      const agent = buildAgent(mcpClient, sessionId, provider)
+```
+
+**Importante:** ubicar este cambio DESPUÉS del `parseRepoUrl` check y ANTES del `deleteSession`, dentro del `try` block (o justo antes de `await emitStage('starting')`). El `provider` solo se usa para `buildAgent`.
+
+Hacer lo mismo en `/api/chat/stream`:
+
+Encontrar:
+```typescript
+      const agent = buildAgent(mcpClient, sessionId)
+```
+
+Reemplazar por:
+```typescript
+      const provider = c.req.query('provider')
+      const agent = buildAgent(mcpClient, sessionId, provider)
+```
+
+- [ ] **Step 3: Verificar tsc backend**
+
+```bash
+npx tsc --noEmit
+```
+
+Expected: clean.
+
+- [ ] **Step 4: Reemplazar pill por select en `AnalysisForm.astro`**
+
+En `web/src/components/AnalysisForm.astro`, encontrar el bloque del pill (alrededor de líneas 7-10):
+
+```html
+    <div class="hero-pill">
+      <span class="hero-pill-dot"></span>
+      <span>Strands Agents · Ollama local</span>
+    </div>
+```
+
+Reemplazar por:
+
+```html
+    <div class="hero-pill">
+      <span class="hero-pill-dot"></span>
+      <span class="hero-pill-label">Strands Agents</span>
+      <span class="hero-pill-separator" aria-hidden="true">·</span>
+      <select id="provider-select" class="hero-pill-select" aria-label="Proveedor del modelo">
+        <option value="ollama">Ollama local</option>
+        <option value="bedrock">AWS Bedrock</option>
+      </select>
+    </div>
+```
+
+- [ ] **Step 5: Estilos del select en `AnalysisForm.astro`**
+
+Dentro del bloque `<style>` (el scoped — no el `is:global`), debajo de `.hero-pill-dot { ... }` (alrededor de línea 100-107), agregar:
+
+```css
+  .hero-pill-label { color: var(--text-secondary); }
+
+  .hero-pill-separator {
+    color: var(--text-muted);
+    margin: 0 2px;
+  }
+
+  .hero-pill-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font: inherit;
+    cursor: pointer;
+    padding: 0 18px 0 0;
+    position: relative;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23a8a8b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right center;
+    background-size: 10px 10px;
+  }
+
+  .hero-pill-select:focus {
+    outline: none;
+  }
+
+  .hero-pill-select option {
+    background: #1a1a2e;
+    color: var(--text-primary);
+  }
+```
+
+Notas:
+- `appearance: none` saca los estilos nativos del browser.
+- El chevron viene inline como SVG (color `%23a8a8b8` = `#a8a8b8`) para no depender de asset externo.
+- Los `<option>` tienen fondo sólido oscuro para que se vean bien cuando el dropdown se abre (el browser los renderiza con estilos del sistema, pero respeta background y color).
+
+- [ ] **Step 6: Wiring del select en el script**
+
+En el bloque `<script>`, encontrar el bloque de declaraciones de elementos (alrededor de `const form = document.getElementById(...)`, línea ~770). Agregar:
+
+```typescript
+  const providerSelect = document.getElementById('provider-select') as HTMLSelectElement
+```
+
+Inmediatamente después, restaurar selección desde localStorage + persistir cambios:
+
+```typescript
+  const SAVED_PROVIDER_KEY = 'modelProvider'
+  const savedProvider = localStorage.getItem(SAVED_PROVIDER_KEY)
+  if (savedProvider === 'ollama' || savedProvider === 'bedrock') {
+    providerSelect.value = savedProvider
+  }
+  providerSelect.addEventListener('change', () => {
+    localStorage.setItem(SAVED_PROVIDER_KEY, providerSelect.value)
+  })
+```
+
+- [ ] **Step 7: Propagar provider en request de analyze**
+
+En el form submit handler (alrededor de línea 1094-1111), encontrar:
+
+```typescript
+    const es = new EventSource(`${API_BASE}/api/analyze/stream?repoUrl=${encodeURIComponent(url)}`)
+```
+
+Reemplazar por:
+
+```typescript
+    const provider = providerSelect.value
+    const es = new EventSource(`${API_BASE}/api/analyze/stream?repoUrl=${encodeURIComponent(url)}&provider=${encodeURIComponent(provider)}`)
+```
+
+Y guardar el provider al momento del analyze para que el chat subsecuente lo use (no queremos que si el user cambia el select después del analyze, el chat arranque con otro modelo). Agregar como variable de módulo (al lado de `let activeEs: EventSource | null = null`):
+
+```typescript
+  let lastAnalysisProvider: string = 'ollama'
+```
+
+Y dentro del submit handler, justo después de leer `provider`:
+
+```typescript
+    lastAnalysisProvider = provider
+```
+
+- [ ] **Step 8: Propagar provider en request de chat**
+
+En la función `wireChatPanel(repoFullName)`, encontrar el EventSource URL del chat (alrededor de línea 1043-1047):
+
+```typescript
+      const url =
+        `${API_BASE}/api/chat/stream` +
+        `?repoUrl=${encodeURIComponent(buildRepoUrl(repoFullName))}` +
+        `&message=${encodeURIComponent(msg)}`
+```
+
+Reemplazar por:
+
+```typescript
+      const url =
+        `${API_BASE}/api/chat/stream` +
+        `?repoUrl=${encodeURIComponent(buildRepoUrl(repoFullName))}` +
+        `&message=${encodeURIComponent(msg)}` +
+        `&provider=${encodeURIComponent(lastAnalysisProvider)}`
+```
+
+- [ ] **Step 9: Verificar build del web**
+
+```bash
+cd web && npm run build
+```
+
+Expected: success.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add src/agent.ts src/server.ts web/src/components/AnalysisForm.astro
+git commit -m "feat(web): selector de provider (ollama/bedrock) en el hero + propagación a backend"
+```
+
+- [ ] **Step 11: Smoke test**
+
+Reiniciar backend. En el browser:
+- [ ] El pill del hero ahora tiene un select con "Ollama local" seleccionado por default.
+- [ ] Cambiar a "AWS Bedrock", analizar un repo → la request usa Bedrock (ver logs del backend, o comprobar alucinaciones vs correctness).
+- [ ] En el chat, la conversación sigue usando Bedrock (no vuelve a Ollama aunque cambies el select después).
+- [ ] Reload del browser → la selección previa persiste.
+- [ ] Cambiar a "Ollama local", analizar un repo distinto → usa Ollama.
+- [ ] Sin cambiar el `.env`, podés alternar providers desde la UI.
