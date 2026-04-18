@@ -57,7 +57,7 @@ export function persistReport(report: AnalysisReport): void {
     score: report.scoreTotal,
     duracionMs: report.duracionMs ?? 0,
     descripcion: report.descripcion ?? '',
-    sintesisTecnica: report.sintesisTecnica,
+    sintesisTecnica: report.sintesisTecnica ?? '',
     veredictoDetalle: report.veredictoDetalle ?? '',
   })
   writeFileSync(PORTFOLIO_PATH, JSON.stringify(portfolio, null, 2), 'utf-8')
