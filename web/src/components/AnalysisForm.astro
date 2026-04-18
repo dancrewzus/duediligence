@@ -48,6 +48,7 @@
     <h3 class="progress-title">
       <span class="progress-dot"></span>
       Progreso del análisis
+      <span id="timer" class="timer">00:00.0</span>
     </h3>
     <ol id="timeline" class="timeline">
       <li class="timeline-item" data-stage="starting"><span class="timeline-icon"></span><span class="timeline-label">Iniciando análisis</span></li>
@@ -248,6 +249,31 @@
     background: var(--accent-blue);
     box-shadow: 0 0 12px var(--accent-blue);
     animation: pulseDot 1.4s ease-in-out infinite;
+  }
+
+  .progress-title {
+    justify-content: flex-start;
+  }
+
+  .timer {
+    margin-left: auto;
+    font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: 0.02em;
+    padding: 4px 10px;
+    background: rgba(7, 7, 13, 0.4);
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    transition: color 0.3s var(--ease-out), border-color 0.3s var(--ease-out);
+  }
+
+  .timer-final {
+    color: var(--accent-green);
+    border-color: rgba(52, 211, 153, 0.3);
+    background: rgba(52, 211, 153, 0.08);
   }
 
   .timeline {
