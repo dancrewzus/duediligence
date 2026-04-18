@@ -599,6 +599,13 @@
   .deuda-justification { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.6; }
   .report-details { display: flex; gap: 20px; }
   .recommendation-text { font-size: 0.98rem; color: var(--text-secondary); line-height: 1.75; }
+  .veredicto-card { display: flex; flex-direction: column; gap: 16px; }
+  .veredicto-badge-wrap { display: flex; }
+  .veredicto-badge {
+    font-size: 1rem;
+    padding: 8px 20px;
+    letter-spacing: 0.04em;
+  }
 
   .tech-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
   .tech-category-label {
@@ -804,6 +811,13 @@
     return 'badge-red'
   }
 
+  function getVeredictoBadgeClass(veredicto: string): string {
+    if (veredicto === 'Adoptar') return 'badge-green'
+    if (veredicto === 'Usar con cautela') return 'badge-yellow'
+    if (veredicto === 'Solo referencia') return 'badge-blue'
+    return 'badge-red'
+  }
+
   function resetTimeline() {
     document.querySelectorAll('.timeline-item').forEach((el) => {
       el.classList.remove('running', 'done')
@@ -993,9 +1007,12 @@
             <ol class="rsc-list">${r.fortalezas.map((i: string) => `<li class="rsc-item">${escapeHtml(i)}</li>`).join('')}</ol>
           </div>
         </div>
-        <div class="report-recommendation card">
-          <h3 class="section-title">Recomendación al inversor</h3>
-          <p class="recommendation-text">${escapeHtml(r.recomendacion)}</p>
+        <div class="veredicto-card card">
+          <h3 class="section-title">Veredicto</h3>
+          <div class="veredicto-badge-wrap">
+            <span class="badge veredicto-badge ${getVeredictoBadgeClass(r.veredicto)}">${escapeHtml(r.veredicto)}</span>
+          </div>
+          <p class="recommendation-text">${escapeHtml(r.veredictoDetalle)}</p>
         </div>
         ${renderChatPanel(r.repo)}
       </div>
