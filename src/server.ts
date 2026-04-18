@@ -217,7 +217,7 @@ app.get('/api/chat/stream', async (c) => {
       // explicit mode tag breaks the pattern more reliably than the system prompt alone.
       const wrappedMessage =
         '[MODO CONVERSACIÓN — respondé en prosa natural en español, NO emitas JSON, NO repitas el reporte]\n\n' +
-        `Pregunta del inversor: ${message}`
+        `Pregunta del dev: ${message}`
 
       for await (const evt of agent.stream(wrappedMessage)) {
         if (evt.type === 'modelStreamUpdateEvent') {
