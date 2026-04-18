@@ -166,21 +166,37 @@ function buildModel(providerOverride?: string) {
   const provider = (providerOverride || process.env.MODEL_PROVIDER || 'ollama').toLowerCase()
 
   if (provider === 'bedrock') {
-    const options: {
-      modelId: string
-      region: string
-      temperature: number
-      apiKey?: string
-    } = {
-      modelId: process.env.BEDROCK_MODEL || 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
-      region: process.env.AWS_REGION || 'us-east-1',
-      temperature: 0.1,
-    }
+    const modelId = process.env.BEDROCK_MODEL || 'us.anthropic.claude-sonnet-4-5-20250929-v1:0'
+    const region = process.env.AWS_REGION || 'us-east-1'
     const apiKey = process.env.BEDROCK_API_KEY
+
     if (apiKey) {
-      options.apiKey = apiKey
+      // Bedrock API key (bearer token) auth.
+      // El middleware applyApiKey del Strands SDK inserta `Authorization: Bearer <key>` al final
+      // (finalizeRequest, priority low), pero AWS SDK v3 corre SigV4 con priority alta ANTES y
+      // falla con "Could not load credentials" si no encuentra creds. Workaround: pasar creds
+      // dummy para que el chain de SigV4 no explote — el middleware sobreescribe el header al
+      // final, así que la request sale con Bearer auth real.
+      return new BedrockModel({
+        modelId,
+        region,
+        temperature: 0.1,
+        apiKey,
+        clientConfig: {
+          credentials: async () => ({
+            accessKeyId: 'bedrock-api-key-noop',
+            secretAccessKey: 'bedrock-api-key-noop',
+          }),
+        },
+      })
     }
-    return new BedrockModel(options)
+
+    // Sin API key: caer al credential chain estándar (env vars, ~/.aws/credentials, IAM role).
+    return new BedrockModel({
+      modelId,
+      region,
+      temperature: 0.1,
+    })
   }
 
   if (provider !== 'ollama') {
