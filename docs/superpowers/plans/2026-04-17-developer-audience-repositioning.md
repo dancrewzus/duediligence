@@ -861,3 +861,186 @@ git commit -m "chore: ajustes menores post smoke test"
 ```
 
 Si no hay cambios: nada que commitear — cerrar el plan acá.
+
+---
+
+## Task 14: Cargar contenido del README en `analyze_repo_structure`
+
+Durante el smoke test el agente no tuvo acceso al contenido del README: la tool solo devolvía `hasReadme` y `readmeLength`. Eso hacía que la `descripcion` se inferiera desde nombres de archivos y la pregunta de chat "¿Para qué LLM me sirve este skill?" disparara respuestas genéricas (el agente describía sus propias capacidades en lugar del repo). Fix: incluir un snippet del README en el output de la tool para que el LLM tenga texto real sobre qué hace el proyecto.
+
+**Files:**
+- Modify: `src/types/index.ts` — agregar `readmeContent: string | null` a `RepoStructure`
+- Modify: `src/tools/github-analyzer.ts` — incluir el contenido truncado en el output
+- Modify: `src/agent.ts` — actualizar el `SYSTEM_PROMPT` para indicar que use `readmeContent` como fuente primaria para `descripcion`
+
+- [ ] **Step 1: Agregar `readmeContent` al tipo `RepoStructure`**
+
+En `src/types/index.ts`, dentro de la interface `RepoStructure` (después del campo `readmeLength`), agregar:
+
+```typescript
+  readmeContent: string | null
+```
+
+Queda así:
+
+```typescript
+export interface RepoStructure {
+  metadata: RepoMetadata
+  rootFiles: string[]
+  packageJson: Record<string, unknown> | null
+  tsconfig: Record<string, unknown> | null
+  hasReadme: boolean
+  readmeLength: number
+  readmeContent: string | null
+  hasEslint: boolean
+  hasPrettier: boolean
+  hasDockerfile: boolean
+  hasDockerCompose: boolean
+  hasCiCd: boolean
+  ciCdFiles: string[]
+}
+```
+
+- [ ] **Step 2: Incluir el snippet del README en el output de la tool**
+
+En `src/tools/github-analyzer.ts`, en la construcción del `structure` object (alrededor de la línea 101), agregar el campo `readmeContent` truncado a 8000 caracteres. Definir una constante y usarla:
+
+Primero, al tope del archivo (después de `const GITHUB_API = ...`), agregar:
+
+```typescript
+const README_SNIPPET_MAX = 8000
+```
+
+Luego, en el `structure` object, agregar `readmeContent`:
+
+```typescript
+    const structure: RepoStructure = {
+      metadata,
+      rootFiles,
+      packageJson: packageJsonRaw ? JSON.parse(packageJsonRaw) : null,
+      tsconfig: tsconfigRaw ? JSON.parse(tsconfigRaw) : null,
+      hasReadme: readmeRaw !== null,
+      readmeLength: readmeRaw?.length ?? 0,
+      readmeContent: readmeRaw ? readmeRaw.slice(0, README_SNIPPET_MAX) : null,
+      hasEslint,
+      hasPrettier,
+      hasDockerfile,
+      hasDockerCompose,
+      hasCiCd: ciCdFiles.length > 0,
+      ciCdFiles,
+    }
+```
+
+**Por qué 8000 chars:** es suficiente para capturar la sección inicial (título + resumen + quickstart) de la mayoría de los READMEs sin inflar el contexto. Un README promedio útil entra entero; los mega-READMEs de 50KB+ quedan truncados al inicio, que es lo relevante.
+
+- [ ] **Step 3: Actualizar el `SYSTEM_PROMPT` para usar `readmeContent` como fuente primaria**
+
+En `src/agent.ts`, dentro del `SYSTEM_PROMPT`, encontrar la línea que describe las fuentes para `descripcion`:
+
+```
+Fuentes, en orden de preferencia: (1) metadata.description de analyze_repo_structure si existe y es informativa, (2) README.md, (3) package.json description, (4) infiere desde dependencias y estructura.
+```
+
+Reemplazar por:
+
+```
+Fuentes, en orden de preferencia: (1) readmeContent de analyze_repo_structure si es informativo — leelo de verdad, no lo ignores, (2) metadata.description si readmeContent está vacío o es pobre, (3) package.json description, (4) inferencia desde dependencias y estructura SOLO como último recurso.
+```
+
+Adicionalmente, en la sección "EVIDENCIA REQUERIDA POR DIMENSIÓN", en el bullet de `documentacionDx`, reemplazar:
+
+```
+- documentacionDx: README presente, longitud útil (no vacío), quickstart, ejemplos de código, API docs, CONTRIBUTING.md, changelog, badges.
+```
+
+por:
+
+```
+- documentacionDx: README presente y su calidad real (leé readmeContent — ¿tiene quickstart?, ¿ejemplos de código?, ¿explica la API?, ¿o es solo un título y badges?). Presencia de CONTRIBUTING.md, changelog.
+```
+
+- [ ] **Step 4: Verificar tipado + commit**
+
+```bash
+npx tsc --noEmit
+git add src/types/index.ts src/tools/github-analyzer.ts src/agent.ts
+git commit -m "feat(analyzer): incluir snippet del README en el output de analyze_repo_structure"
+```
+
+Expected: `tsc --noEmit` clean.
+
+- [ ] **Step 5: Smoke test rápido con un repo conocido**
+
+Arrancar el backend si no está corriendo:
+
+```bash
+npm run dev:server
+```
+
+Desde el browser, analizar `https://github.com/nextlevelbuilder/ui-ux-pro-max-skill` (el repo del reporte fallido). Verificar:
+- [ ] En la consola del backend, al llamar `analyze_repo_structure`, el output incluye `"readmeContent": "..."` con texto real del README.
+- [ ] La `descripcion` generada por el agente refleja contenido del README (no solo inferencia de directorios).
+
+Si el README sigue sin aparecer en el output, hay un bug — escalate.
+
+---
+
+## Task 15: Endurecer `CHAT_SYSTEM_PROMPT` contra auto-descripción
+
+En el smoke test, cuando el dev preguntó "¿Para qué LLM me sirve este skill?", llama3.1 confundió "este skill" (el repo analizado) con las capacidades del propio agente de due diligence y vendió las features del agente en vez de analizar el repo. Fix: reforzar el prompt de chat para anclar explícitamente "este repo / este skill / esta librería" al repositorio analizado, y prohibir auto-descripción.
+
+**Files:**
+- Modify: `src/agent.ts` — ajustar `CHAT_SYSTEM_PROMPT`
+
+- [ ] **Step 1: Agregar reglas anti-auto-descripción al `CHAT_SYSTEM_PROMPT`**
+
+En `src/agent.ts`, encontrar el `CHAT_SYSTEM_PROMPT` actual y reemplazarlo por:
+
+```typescript
+const CHAT_SYSTEM_PROMPT = `Eres un staff engineer con 15 años de experiencia que ya revisó este repo y emitió el reporte.
+
+CONTEXTO: En turnos anteriores de esta conversación aparece un bloque \`\`\`json con el reporte técnico completo. Ese reporte YA FUE ENTREGADO — no lo repitas, no lo reescribas, no emitas otro JSON. El dev ya lo tiene.
+
+REGLA DE REFERENCIA (crítica — si fallás acá, el dev queda confundido):
+Cuando el dev diga "este repo", "este skill", "esta librería", "este proyecto", "esto", o cualquier demostrativo, SIEMPRE se refiere al REPOSITORIO ANALIZADO (el que aparece en el campo "repo" del reporte JSON anterior), NUNCA a vos como agente, NUNCA a la herramienta de due diligence.
+
+PROHIBIDO describir tus propias capacidades como agente ("puedo evaluar repos", "te ayudo a analizar proyectos", "sirvo para tomar decisiones", etc.). El dev no te preguntó qué hacés vos — te preguntó sobre el repo que acabás de analizar. Si tu respuesta empieza con "Este skill/repo te puede servir para..." y seguís describiendo funciones de análisis de GitHub, estás describiendo a vos mismo — detenete y releé la pregunta apuntando al repo analizado.
+
+AHORA ESTÁS EN MODO CONVERSACIÓN. Reglas absolutas:
+- PROHIBIDO emitir bloques \`\`\`json, \`\`\`, o cualquier formato estructurado tipo schema. Si tu respuesta empieza con \`{\` o \`\`\`\`, está mal.
+- Respondé SIEMPRE en prosa natural en español, en 2 a 5 oraciones. Podés usar listas markdown con guiones si aclaran.
+- El reporte (incluyendo descripcion, tecnologias y scores) está en tu memoria — usalo como fuente principal, pero respondé a la pregunta específica del dev sobre el REPO ANALIZADO, no resumas todo el reporte.
+- Si la pregunta requiere info que no está en el reporte (ej. detalles de implementación interna, comparación con otro repo no analizado), decilo explícitamente: "No tengo ese dato en el reporte" — no inventes.
+- No llames tools salvo que la pregunta exija datos nuevos que no tengas.
+- Tono directo, técnico, objetivo. No suavices problemas. Hablás de adopción/integración/forks, no de inversión.
+
+Si tu primer impulso es escribir \`\`\`json o describir tus capacidades como agente, detenete: estás en modo conversación, y el sujeto es el REPO ANALIZADO.`
+```
+
+**Cambios respecto al prompt actual**:
+- Nueva sección "REGLA DE REFERENCIA" que fija "este repo / este skill" al repositorio analizado.
+- Nueva sección "PROHIBIDO describir tus propias capacidades" con un ejemplo concreto del error observado.
+- Regla nueva: "Si la pregunta requiere info que no está en el reporte, decilo explícitamente — no inventes."
+- Cierre reforzado: "el sujeto es el REPO ANALIZADO".
+
+- [ ] **Step 2: Verificar tipado + commit**
+
+```bash
+npx tsc --noEmit
+git add src/agent.ts
+git commit -m "feat(agent): reforzar chat prompt contra auto-descripción y fijar referente 'este repo'"
+```
+
+Expected: `tsc --noEmit` clean.
+
+- [ ] **Step 3: Smoke test rápido del chat**
+
+Con el backend corriendo, analizar cualquier repo. En el chat hacer preguntas con pronombres ambiguos, por ejemplo:
+- "¿para qué sirve este skill?"
+- "¿podés usarlo en producción?"
+- "¿cómo se compara con otros del mismo tipo?"
+
+Verificar:
+- [ ] La respuesta describe el REPO ANALIZADO, no las capacidades del agente.
+- [ ] Si la pregunta excede los datos del reporte, el agente dice "no tengo ese dato" en vez de inventar.
+- [ ] No emite JSON.
