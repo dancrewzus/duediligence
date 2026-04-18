@@ -406,16 +406,15 @@
           day: 'numeric',
         })
         const calIcon = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`
+        const dur = formatDuration(item.duracionMs)
+        const durationPill = dur ? `<span class="portfolio-duration" title="Duración del análisis">⏱ ${escapeHtml(dur)}</span>` : ''
         return `
           <div class="portfolio-row">
             <div class="portfolio-row-info">
               <div class="portfolio-row-repo"><a class="portfolio-row-repo-link" href="${escapeHtml(buildRepoUrl(item))}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.repo)}</a></div>
               <div class="portfolio-row-meta">
                 ${calIcon}<span>${fecha}</span>
-                ${(() => {
-                  const dur = formatDuration(item.duracionMs)
-                  return dur ? `<span class="portfolio-duration" title="Duración del análisis">⏱ ${escapeHtml(dur)}</span>` : ''
-                })()}
+                ${durationPill}
               </div>
             </div>
             <div class="portfolio-row-summary">${escapeHtml(item.sintesisTecnica)}</div>
