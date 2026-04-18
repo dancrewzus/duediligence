@@ -333,7 +333,7 @@
     repo: string
     fecha: string
     score: number
-    resumen: string
+    sintesisTecnica: string
   }
 
   let portfolio: PortfolioItem[] = []
@@ -367,7 +367,7 @@
                 ${calIcon}<span>${fecha}</span>
               </div>
             </div>
-            <div class="portfolio-row-summary">${escapeHtml(item.resumen)}</div>
+            <div class="portfolio-row-summary">${escapeHtml(item.sintesisTecnica)}</div>
             <div class="portfolio-row-score" style="color: ${getScoreColor(item.score)}">
               ${item.score.toFixed(1)}
             </div>
