@@ -880,6 +880,59 @@
 
   const STAGE_ORDER = ['starting', 'fetching_metadata', 'analyzing_activity', 'evaluating', 'generating_report']
 
+  const STAGE_PHRASES: Record<string, string[]> = {
+    starting: [
+      'Calentando motores',
+      'Conectando con GitHub',
+      'Armando el caso',
+      'Tomando el primer café',
+      'Revisando credenciales',
+      'Afilando el lápiz',
+      'Abriendo el repo en el IDE mental',
+      'Preparando el checklist',
+    ],
+    fetching_metadata: [
+      'Leyendo package.json',
+      'Espiando el tsconfig',
+      'Contando archivos de config',
+      'Buscando el README',
+      'Mapeando la estructura de carpetas',
+      'Revisando dependencias',
+      'Chequeando linters y formatters',
+      'Viendo si hay Dockerfile',
+    ],
+    analyzing_activity: [
+      'Mirando commits recientes',
+      'Chusmeando el log de git',
+      'Contando contributors activos',
+      'Revisando PRs abiertos',
+      'Viendo qué tan vivo está el repo',
+      'Pulseando la velocidad del equipo',
+      'Buscando bus factor',
+      'Revisando si hay actividad real o es un repo zombi',
+    ],
+    evaluating: [
+      'Puntuando arquitectura',
+      'Midiendo deuda técnica',
+      'Evaluando seguridad',
+      'Cruzando señales',
+      'Pensando como inversor',
+      'Poniendo la lupa en el código',
+      'Contrastando con benchmarks',
+      'Separando el humo del fuego',
+    ],
+    generating_report: [
+      'Redactando veredicto',
+      'Apretando los scores',
+      'Sacando las conclusiones',
+      'Eligiendo las fortalezas',
+      'Listando las banderas',
+      'Dando formato al JSON',
+      'Firmando el reporte',
+      'Haciendo revisión final',
+    ],
+  }
+
   function escapeHtml(s: string): string {
     return String(s)
       .replace(/&/g, '&amp;')
@@ -917,6 +970,10 @@
     document.querySelectorAll('.timeline-item').forEach((el) => {
       el.classList.remove('running', 'done')
     })
+    document.querySelectorAll('.timeline-phrase').forEach((el) => {
+      el.classList.remove('visible')
+      el.textContent = ''
+    })
     reasoningPre.textContent = ''
   }
 
@@ -930,6 +987,7 @@
       if (idx < currentIdx) el.classList.add('done')
       if (idx === currentIdx) el.classList.add('running')
     })
+    startPhrasesForStage(stage)
   }
 
   function markAllDone() {
@@ -1231,6 +1289,68 @@
     timerEl.classList.add('timer-final')
   }
 
+  let phraseInterval: number | null = null
+  let activePhraseStage: string | null = null
+  let currentPhraseIdx = -1
+
+  function pickRandomPhraseIdx(stage: string, avoidIdx: number): number {
+    const pool = STAGE_PHRASES[stage]
+    if (!pool || pool.length === 0) return -1
+    if (pool.length === 1) return 0
+    let idx = Math.floor(Math.random() * pool.length)
+    if (idx === avoidIdx) {
+      idx = (idx + 1) % pool.length
+    }
+    return idx
+  }
+
+  function getPhraseEl(stage: string): HTMLSpanElement | null {
+    return document.querySelector(`.timeline-item[data-stage="${stage}"] .timeline-phrase`)
+  }
+
+  function stopPhrases() {
+    if (phraseInterval !== null) {
+      clearInterval(phraseInterval)
+      phraseInterval = null
+    }
+    if (activePhraseStage) {
+      const prevEl = getPhraseEl(activePhraseStage)
+      if (prevEl) {
+        prevEl.classList.remove('visible')
+        prevEl.textContent = ''
+      }
+    }
+    activePhraseStage = null
+    currentPhraseIdx = -1
+  }
+
+  function startPhrasesForStage(stage: string) {
+    stopPhrases()
+    const pool = STAGE_PHRASES[stage]
+    if (!pool || pool.length === 0) return
+    const phraseEl = getPhraseEl(stage)
+    if (!phraseEl) return
+
+    activePhraseStage = stage
+    currentPhraseIdx = pickRandomPhraseIdx(stage, -1)
+    phraseEl.textContent = pool[currentPhraseIdx]
+    window.setTimeout(() => {
+      if (activePhraseStage === stage) phraseEl.classList.add('visible')
+    }, 50)
+
+    phraseInterval = window.setInterval(() => {
+      if (activePhraseStage !== stage) return
+      const nextIdx = pickRandomPhraseIdx(stage, currentPhraseIdx)
+      phraseEl.classList.remove('visible')
+      window.setTimeout(() => {
+        if (activePhraseStage !== stage) return
+        currentPhraseIdx = nextIdx
+        phraseEl.textContent = pool[nextIdx]
+        phraseEl.classList.add('visible')
+      }, 250)
+    }, 3000)
+  }
+
   form.addEventListener('submit', (e) => {
     e.preventDefault()
     const url = input.value.trim()
@@ -1276,12 +1396,14 @@
         } else {
           stopTimer()
         }
+        stopPhrases()
         markAllDone()
         reportContainer.innerHTML = renderReport(report)
         progressDiv.style.display = 'none'
         wireChatPanel(report.repo)
       } catch (err) {
         stopTimer()
+        stopPhrases()
         stopTimelineSpinner()
         errorText.textContent = 'Error al parsear el reporte'
         errorDiv.style.display = 'block'
@@ -1294,6 +1416,7 @@
       try {
         const { message } = JSON.parse((e as MessageEvent).data)
         stopTimer()
+        stopPhrases()
         stopTimelineSpinner()
         errorText.textContent = message || 'Error durante el análisis'
         errorDiv.style.display = 'block'
@@ -1302,6 +1425,7 @@
 
     es.addEventListener('done', () => {
       stopTimer()
+      stopPhrases()
       stopTimelineSpinner()
       es.close()
       activeEs = null
@@ -1312,6 +1436,7 @@
       // Connection failure (not a user-level error event)
       if (es.readyState === EventSource.CLOSED) return
       stopTimer()
+      stopPhrases()
       stopTimelineSpinner()
       errorText.textContent = 'Conexión perdida con el servidor'
       errorDiv.style.display = 'block'
