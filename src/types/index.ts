@@ -83,11 +83,16 @@ export interface AnalysisReport {
   veredicto: Veredicto
   veredictoDetalle: string
   sintesisTecnica: string
+  duracionMs?: number
 }
 
 export interface PortfolioEntry {
   repo: string
+  repoUrl: string
   fecha: string
   score: number
+  duracionMs: number
+  descripcion: string
   sintesisTecnica: string
+  veredictoDetalle: string
 }
