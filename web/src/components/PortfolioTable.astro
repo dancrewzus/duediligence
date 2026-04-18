@@ -259,6 +259,19 @@
     text-overflow: ellipsis;
   }
 
+  .portfolio-row-repo-link {
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.25s var(--ease-out);
+  }
+
+  .portfolio-row-repo-link:hover {
+    color: var(--accent-blue);
+    text-decoration: underline;
+    text-decoration-color: rgba(110, 168, 255, 0.5);
+    text-underline-offset: 4px;
+  }
+
   .portfolio-row-meta {
     display: flex;
     align-items: center;
@@ -331,13 +344,21 @@
 
   interface PortfolioItem {
     repo: string
+    repoUrl?: string
     fecha: string
     score: number
+    duracionMs?: number
+    descripcion?: string
     sintesisTecnica: string
+    veredictoDetalle?: string
   }
 
   let portfolio: PortfolioItem[] = []
   let sortBy: 'score' | 'date' = 'score'
+
+  function buildRepoUrl(item: PortfolioItem): string {
+    return item.repoUrl ?? `https://github.com/${item.repo}`
+  }
 
   function getScoreColor(score: number): string {
     if (score > 7) return 'var(--score-good)'
@@ -362,7 +383,7 @@
         return `
           <div class="portfolio-row">
             <div class="portfolio-row-info">
-              <div class="portfolio-row-repo">${escapeHtml(item.repo)}</div>
+              <div class="portfolio-row-repo"><a class="portfolio-row-repo-link" href="${escapeHtml(buildRepoUrl(item))}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.repo)}</a></div>
               <div class="portfolio-row-meta">
                 ${calIcon}<span>${fecha}</span>
               </div>
