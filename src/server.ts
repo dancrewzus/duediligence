@@ -55,7 +55,8 @@ app.get('/api/analyze/stream', async (c) => {
         console.warn('[server] deleteSession failed (non-fatal):', wipeErr)
       }
 
-      const agent = buildAgent(mcpClient, sessionId)
+      const provider = c.req.query('provider')
+      const agent = buildAgent(mcpClient, sessionId, provider)
       await emitStage('starting')
 
       const prompt = `Analiza el repositorio ${parsed.owner}/${parsed.repo} (https://github.com/${parsed.owner}/${parsed.repo}) y genera el reporte de due diligence técnico completo.`
@@ -204,7 +205,8 @@ app.get('/api/chat/stream', async (c) => {
       const sessionId = repoSessionId(parsed.owner, parsed.repo)
 
       // No deleteSession here: the agent restores prior snapshot on init.
-      const agent = buildAgent(mcpClient, sessionId)
+      const provider = c.req.query('provider')
+      const agent = buildAgent(mcpClient, sessionId, provider)
 
       // Force initialization first so the SessionManager restores the snapshot
       // (which overwrites systemPrompt with the analysis prompt that mandates JSON).

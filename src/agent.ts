@@ -162,8 +162,8 @@ export function createMcp(): Promise<McpClient | null> {
   return createGitHubMcp()
 }
 
-function buildModel() {
-  const provider = (process.env.MODEL_PROVIDER || 'ollama').toLowerCase()
+function buildModel(providerOverride?: string) {
+  const provider = (providerOverride || process.env.MODEL_PROVIDER || 'ollama').toLowerCase()
 
   if (provider === 'bedrock') {
     const options: {
@@ -203,10 +203,10 @@ function buildModel() {
   })
 }
 
-export function buildAgent(mcpClient: McpClient | null, sessionId?: string): Agent {
+export function buildAgent(mcpClient: McpClient | null, sessionId?: string, providerOverride?: string): Agent {
   const portfolioContext = buildPortfolioContext()
 
-  const model = buildModel()
+  const model = buildModel(providerOverride)
 
   const tools: (typeof analyzeRepoStructure | typeof saveAnalysis | typeof getPortfolio | McpClient)[] = [
     analyzeRepoStructure,

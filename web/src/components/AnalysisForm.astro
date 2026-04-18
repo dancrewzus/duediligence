@@ -6,7 +6,12 @@
   <div class="hero">
     <div class="hero-pill">
       <span class="hero-pill-dot"></span>
-      <span>Strands Agents · Ollama local</span>
+      <span class="hero-pill-label">Strands Agents</span>
+      <span class="hero-pill-separator" aria-hidden="true">·</span>
+      <select id="provider-select" class="hero-pill-select" aria-label="Proveedor del modelo">
+        <option value="ollama">Ollama local</option>
+        <option value="bedrock">AWS Bedrock</option>
+      </select>
     </div>
     <h1 class="hero-title">¿Te sirve este <span>repo</span>?</h1>
     <p class="hero-subtitle">
@@ -104,6 +109,38 @@
     background: var(--accent-cyan);
     box-shadow: 0 0 10px var(--accent-cyan);
     animation: pulseDot 2s ease-in-out infinite;
+  }
+
+  .hero-pill-label { color: var(--text-secondary); }
+
+  .hero-pill-separator {
+    color: var(--text-muted);
+    margin: 0 2px;
+  }
+
+  .hero-pill-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font: inherit;
+    cursor: pointer;
+    padding: 0 18px 0 0;
+    position: relative;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23a8a8b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right center;
+    background-size: 10px 10px;
+  }
+
+  .hero-pill-select:focus {
+    outline: none;
+  }
+
+  .hero-pill-select option {
+    background: #1a1a2e;
+    color: var(--text-primary);
   }
 
   .hero-title {
@@ -782,6 +819,16 @@
   const errorDiv = document.getElementById('error') as HTMLDivElement
   const errorText = document.getElementById('error-text') as HTMLParagraphElement
   const reportContainer = document.getElementById('report-container') as HTMLDivElement
+  const providerSelect = document.getElementById('provider-select') as HTMLSelectElement
+
+  const SAVED_PROVIDER_KEY = 'modelProvider'
+  const savedProvider = localStorage.getItem(SAVED_PROVIDER_KEY)
+  if (savedProvider === 'ollama' || savedProvider === 'bedrock') {
+    providerSelect.value = savedProvider
+  }
+  providerSelect.addEventListener('change', () => {
+    localStorage.setItem(SAVED_PROVIDER_KEY, providerSelect.value)
+  })
 
   const STAGE_ORDER = ['starting', 'fetching_metadata', 'analyzing_activity', 'evaluating', 'generating_report']
 
@@ -1061,7 +1108,8 @@
       const url =
         `${API_BASE}/api/chat/stream` +
         `?repoUrl=${encodeURIComponent(buildRepoUrl(repoFullName))}` +
-        `&message=${encodeURIComponent(msg)}`
+        `&message=${encodeURIComponent(msg)}` +
+        `&provider=${encodeURIComponent(lastAnalysisProvider)}`
       const es = new EventSource(url)
       activeChatEs = es
 
@@ -1108,6 +1156,7 @@
   }
 
   let activeEs: EventSource | null = null
+  let lastAnalysisProvider: string = 'ollama'
 
   form.addEventListener('submit', (e) => {
     e.preventDefault()
@@ -1126,7 +1175,9 @@
     progressDiv.style.display = 'block'
     setStage('starting')
 
-    const es = new EventSource(`${API_BASE}/api/analyze/stream?repoUrl=${encodeURIComponent(url)}`)
+    const provider = providerSelect.value
+    lastAnalysisProvider = provider
+    const es = new EventSource(`${API_BASE}/api/analyze/stream?repoUrl=${encodeURIComponent(url)}&provider=${encodeURIComponent(provider)}`)
     activeEs = es
 
     es.addEventListener('stage', (e: MessageEvent) => {
