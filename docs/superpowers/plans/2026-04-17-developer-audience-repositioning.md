@@ -1044,3 +1044,177 @@ Verificar:
 - [ ] La respuesta describe el REPO ANALIZADO, no las capacidades del agente.
 - [ ] Si la pregunta excede los datos del reporte, el agente dice "no tengo ese dato" en vez de inventar.
 - [ ] No emite JSON.
+
+---
+
+## Task 16: Feature flag `MODEL_PROVIDER` — agregar Anthropic API
+
+Durante el smoke test con llama3.1:8b (vía Ollama) se observaron alucinaciones en métricas específicas (ej. "último commit hace 2 meses" cuando en realidad fue hace 2 semanas). Es limitación de un modelo chico parseando outputs grandes de tools. Fix: permitir elegir el provider vía env var y agregar soporte para Anthropic API (Claude Sonnet 4.5) como alternativa más confiable, sin romper la opción local.
+
+**Decisión:** feature flag (no swap). Default sigue siendo Ollama (no rompe setup existente). Anthropic se activa con `MODEL_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`.
+
+**Modelo default para Anthropic:** `claude-sonnet-4-5-20250929`. Balance calidad/costo para análisis estructurado (~$0.04-0.08 por reporte).
+
+**Files:**
+- Modify: `package.json` — agregar dep `@anthropic-ai/sdk`
+- Modify: `src/agent.ts` — factorizar selección de modelo en helper, agregar rama Anthropic
+- Modify: `.env.example` — documentar variables nuevas
+- Modify: `CLAUDE.md` — actualizar sección de stack con opción Anthropic
+
+- [ ] **Step 1: Instalar `@anthropic-ai/sdk`**
+
+```bash
+npm install @anthropic-ai/sdk
+```
+
+Expected: dep agregada a `package.json` y `package-lock.json` actualizado. Sin breaking changes — es peer de `@strands-agents/sdk`.
+
+- [ ] **Step 2: Agregar helper `buildModel` en `src/agent.ts`**
+
+En `src/agent.ts`, importar `AnthropicModel` al top (cerca del import de `OpenAIModel`):
+
+```typescript
+import { AnthropicModel } from '@strands-agents/sdk/models/anthropic'
+```
+
+Dentro de `buildAgent(mcpClient, sessionId?)`, reemplazar el bloque actual de instanciación del modelo (las ~10 líneas que empiezan con `const ollamaHost = ...` y terminan con `})`) por una llamada a un nuevo helper. Agregar el helper fuera de `buildAgent` (antes de su definición, al nivel del módulo):
+
+```typescript
+function buildModel() {
+  const provider = (process.env.MODEL_PROVIDER || 'ollama').toLowerCase()
+
+  if (provider === 'anthropic') {
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) {
+      throw new Error(
+        'MODEL_PROVIDER=anthropic requiere ANTHROPIC_API_KEY en el entorno. ' +
+          'Conseguí una en https://console.anthropic.com/settings/keys y agregala al .env.'
+      )
+    }
+    return new AnthropicModel({
+      modelId: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
+      apiKey,
+      params: {
+        temperature: 0.1,
+      },
+    })
+  }
+
+  if (provider !== 'ollama') {
+    throw new Error(
+      `MODEL_PROVIDER="${provider}" no soportado. Valores válidos: "ollama", "anthropic".`
+    )
+  }
+
+  // Ollama expone API compatible con OpenAI en /v1
+  const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434'
+  return new OpenAIModel({
+    api: 'chat',
+    modelId: process.env.OLLAMA_MODEL || 'llama3.1',
+    apiKey: 'ollama',
+    temperature: 0.1,
+    topP: 0.9,
+    clientConfig: {
+      baseURL: `${ollamaHost}/v1`,
+    },
+  })
+}
+```
+
+En `buildAgent`, reemplazar el bloque del modelo con:
+
+```typescript
+  const model = buildModel()
+```
+
+(Eliminar las líneas actuales que construyen el `OpenAIModel` inline y el comentario sobre Ollama — ya están dentro de `buildModel`.)
+
+**Notas importantes**:
+- `AnthropicModel` usa `params.temperature` (no `temperature` top-level — ver `AnthropicModelConfig` extends `BaseModelConfig`, `temperature` no existe; los params extra van en `params`).
+- Fail-fast explícito si falta `ANTHROPIC_API_KEY` — mejor un error claro que un 401 cryptic más tarde.
+- Fail-fast también si `MODEL_PROVIDER` es un valor desconocido (typo protection).
+
+- [ ] **Step 3: Verificar tipado**
+
+```bash
+npx tsc --noEmit
+```
+
+Expected: clean.
+
+Si hay error de tipo en `AnthropicModel` al pasar `params.temperature`, leé `node_modules/@strands-agents/sdk/dist/src/models/anthropic.d.ts` para confirmar la forma exacta del config. El type `AnthropicModelConfig` tiene `params?: Record<string, unknown>`, así que `temperature` dentro de `params` es válido (se pasa tal cual a la API de Anthropic).
+
+- [ ] **Step 4: Actualizar `.env.example`**
+
+Al final de `.env.example`, agregar:
+
+```
+# Model provider: "ollama" (default) o "anthropic"
+MODEL_PROVIDER=ollama
+
+# Anthropic API (solo si MODEL_PROVIDER=anthropic)
+# Obtené una API key en https://console.anthropic.com/settings/keys
+ANTHROPIC_API_KEY=
+ANTHROPIC_MODEL=claude-sonnet-4-5-20250929
+```
+
+- [ ] **Step 5: Actualizar `CLAUDE.md`**
+
+En `CLAUDE.md`, en la sección "Stack y comandos" → subsección donde menciona "Proveedor LLM: Ollama local", reemplazar:
+
+```
+- **Proveedor LLM:** **Ollama local** — se usa `OpenAIModel` apuntando a `http://localhost:11434/v1` (Ollama expone API OpenAI-compatible). Modelo default: `llama3.1`.
+```
+
+con:
+
+```
+- **Proveedor LLM:** configurable vía `MODEL_PROVIDER`:
+  - `ollama` (default) — `OpenAIModel` apuntando a `http://localhost:11434/v1` (Ollama expone API OpenAI-compatible). Modelo default: `llama3.1`. Gratis, offline, calidad limitada por tamaño del modelo local.
+  - `anthropic` — `AnthropicModel` con Claude Sonnet 4.5 (default `claude-sonnet-4-5-20250929`). Requiere `ANTHROPIC_API_KEY`. Parsea tool outputs con más precisión; recomendado si ves alucinaciones en métricas con Ollama.
+```
+
+En la sección "Variables de entorno requeridas (.env):", reemplazar el bloque por:
+
+```
+OLLAMA_HOST=http://localhost:11434        # solo si MODEL_PROVIDER=ollama
+OLLAMA_MODEL=llama3.1                     # solo si MODEL_PROVIDER=ollama
+MODEL_PROVIDER=ollama                     # "ollama" o "anthropic"
+ANTHROPIC_API_KEY=                        # solo si MODEL_PROVIDER=anthropic
+ANTHROPIC_MODEL=claude-sonnet-4-5-20250929 # opcional, default ya apunta a Sonnet 4.5
+GITHUB_PERSONAL_ACCESS_TOKEN
+PORT=3001
+```
+
+Y cerca del prerequisito sobre Ollama, aclarar:
+
+```
+Prerequisito (solo si `MODEL_PROVIDER=ollama`): tener Ollama corriendo (`ollama serve`) con un modelo descargado (`ollama pull llama3.1`). Si usás `MODEL_PROVIDER=anthropic`, no hace falta Ollama.
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add package.json package-lock.json src/agent.ts .env.example CLAUDE.md
+git commit -m "feat(agent): feature flag MODEL_PROVIDER con soporte Anthropic API (Claude Sonnet 4.5)"
+```
+
+- [ ] **Step 7: Smoke test con Anthropic**
+
+En tu `.env` local:
+```
+MODEL_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-...   # tu key
+```
+
+Reiniciar el backend (`tsx watch` debería detectarlo solo si el proceso sigue vivo; si no, `npm run dev:server`).
+
+Re-analizar `https://github.com/nextlevelbuilder/ui-ux-pro-max-skill` en el browser.
+
+Verificar:
+- [ ] `descripcion` coherente con el README.
+- [ ] `ultimoCommitHace` coincide con la realidad (no alucina).
+- [ ] Chat responde sobre el repo, no describe el agente.
+- [ ] Reporte completo llega en ~20-40 segundos (latencia aceptable de Sonnet).
+
+Si el reporte es coherente, el fix validó. Si seguís viendo alucinaciones con Sonnet, hay un bug más profundo en la tool (no el modelo) — escalate.
