@@ -284,6 +284,20 @@
     flex-shrink: 0;
   }
 
+  .portfolio-duration {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+  }
+
   .portfolio-row-summary {
     flex: 2;
     font-size: 0.85rem;
@@ -360,6 +374,18 @@
     return item.repoUrl ?? `https://github.com/${item.repo}`
   }
 
+  function formatDuration(ms: number | undefined): string | null {
+    if (typeof ms !== 'number' || ms <= 0) return null
+    if (ms < 60_000) {
+      const seconds = ms / 1000
+      return `${seconds.toFixed(1)}s`
+    }
+    const totalSeconds = Math.round(ms / 1000)
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    return `${minutes}m ${seconds}s`
+  }
+
   function getScoreColor(score: number): string {
     if (score > 7) return 'var(--score-good)'
     if (score >= 4) return 'var(--score-ok)'
@@ -386,6 +412,10 @@
               <div class="portfolio-row-repo"><a class="portfolio-row-repo-link" href="${escapeHtml(buildRepoUrl(item))}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.repo)}</a></div>
               <div class="portfolio-row-meta">
                 ${calIcon}<span>${fecha}</span>
+                ${(() => {
+                  const dur = formatDuration(item.duracionMs)
+                  return dur ? `<span class="portfolio-duration" title="Duración del análisis">⏱ ${escapeHtml(dur)}</span>` : ''
+                })()}
               </div>
             </div>
             <div class="portfolio-row-summary">${escapeHtml(item.sintesisTecnica)}</div>
