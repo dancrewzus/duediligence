@@ -1613,3 +1613,115 @@ Reiniciar backend. En el browser:
 - [ ] Reload del browser → la selección previa persiste.
 - [ ] Cambiar a "Ollama local", analizar un repo distinto → usa Ollama.
 - [ ] Sin cambiar el `.env`, podés alternar providers desde la UI.
+
+---
+
+## Task 19: Fix Bedrock API key auth — bypass SigV4 credential chain
+
+Durante el smoke test con `BEDROCK_API_KEY` seteado, el backend devuelve `"Could not load credentials from any providers"`. Causa raíz: el middleware del Strands SDK (`applyApiKey`) inserta el header `Authorization: Bearer <key>` en el step `finalizeRequest` con `priority: 'low'`, pero el AWS SDK v3 corre el credential chain de SigV4 ANTES (con priority alta) — falla por falta de credenciales antes de que llegue el middleware del API key.
+
+**Fix:** cuando hay `BEDROCK_API_KEY`, pasar un credentials provider dummy en `clientConfig.credentials`. Las credenciales dummy satisfacen el chain de SigV4 (no falla) y se usan para firmar — pero el middleware del API key sobreescribe el header `Authorization` al final, así que la request real sale con `Bearer <key>` (auth correcta) y no con la firma SigV4 dummy.
+
+**Files:**
+- Modify: `src/agent.ts` — actualizar branch `bedrock` en `buildModel`
+- Modify: `.env.example` — agregar nota explicativa sobre el workaround
+
+- [ ] **Step 1: Actualizar el branch bedrock en `buildModel`**
+
+En `src/agent.ts`, reemplazar el branch actual de bedrock:
+
+```typescript
+  if (provider === 'bedrock') {
+    const options: {
+      modelId: string
+      region: string
+      temperature: number
+      apiKey?: string
+    } = {
+      modelId: process.env.BEDROCK_MODEL || 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+      region: process.env.AWS_REGION || 'us-east-1',
+      temperature: 0.1,
+    }
+    const apiKey = process.env.BEDROCK_API_KEY
+    if (apiKey) {
+      options.apiKey = apiKey
+    }
+    return new BedrockModel(options)
+  }
+```
+
+por:
+
+```typescript
+  if (provider === 'bedrock') {
+    const modelId = process.env.BEDROCK_MODEL || 'us.anthropic.claude-sonnet-4-5-20250929-v1:0'
+    const region = process.env.AWS_REGION || 'us-east-1'
+    const apiKey = process.env.BEDROCK_API_KEY
+
+    if (apiKey) {
+      // Bedrock API key (bearer token) auth.
+      // El middleware applyApiKey del Strands SDK inserta `Authorization: Bearer <key>` al final
+      // (finalizeRequest, priority low), pero AWS SDK v3 corre SigV4 con priority alta ANTES y
+      // falla con "Could not load credentials" si no encuentra creds. Workaround: pasar creds
+      // dummy para que el chain de SigV4 no explote — el middleware sobreescribe el header al
+      // final, así que la request sale con Bearer auth real.
+      return new BedrockModel({
+        modelId,
+        region,
+        temperature: 0.1,
+        apiKey,
+        clientConfig: {
+          credentials: async () => ({
+            accessKeyId: 'bedrock-api-key-noop',
+            secretAccessKey: 'bedrock-api-key-noop',
+          }),
+        },
+      })
+    }
+
+    // Sin API key: caer al credential chain estándar (env vars, ~/.aws/credentials, IAM role).
+    return new BedrockModel({
+      modelId,
+      region,
+      temperature: 0.1,
+    })
+  }
+```
+
+**Notas**:
+- Las creds dummy nunca se usan en la red — el middleware del SDK sobreescribe el `Authorization` header con `Bearer <apiKey>` real.
+- La rama sin API key (Opción B del `.env.example`) queda intacta — sigue usando SigV4 con creds reales.
+
+- [ ] **Step 2: Verificar tipado**
+
+```bash
+npx tsc --noEmit
+```
+
+Expected: clean. Si hay error de tipo en `clientConfig.credentials`, chequear que el tipo de retorno de la función async sea compatible con `AwsCredentialIdentity` del AWS SDK (al menos `accessKeyId` y `secretAccessKey` strings).
+
+- [ ] **Step 3: Actualizar nota en `.env.example`**
+
+En la sección de Opción A en `.env.example`, agregar al final del comentario:
+
+```
+#   Nota: el SDK acepta el bearer token vía middleware pero igual ejecuta el credential chain
+#   de SigV4 antes — el código pasa creds dummy internamente para que no explote, no hace falta
+#   que vos completes AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY si usás esta opción.
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add src/agent.ts .env.example
+git commit -m "fix(agent): bypass SigV4 credential chain cuando se usa BEDROCK_API_KEY (bearer token)"
+```
+
+- [ ] **Step 5: Smoke test con Bedrock API key**
+
+Reiniciar backend. En el browser, cambiar el select a "AWS Bedrock", analizar un repo. Esperar:
+- [ ] El reporte llega completo sin error de credenciales.
+- [ ] Métricas exactas (no alucinadas).
+- [ ] Latencia ~20-40s.
+
+Si seguís viendo "Could not load credentials", significa que el workaround no funciona — el SigV4 signer puede estar fallando en otro punto. En ese caso, fallback a Opción B (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY).
