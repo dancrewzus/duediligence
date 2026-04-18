@@ -846,6 +846,15 @@
   const errorText = document.getElementById('error-text') as HTMLParagraphElement
   const reportContainer = document.getElementById('report-container') as HTMLDivElement
   const providerSelect = document.getElementById('provider-select') as HTMLSelectElement
+  const timerEl = document.getElementById('timer') as HTMLSpanElement
+
+  function formatTimer(ms: number): string {
+    const totalSeconds = Math.floor(ms / 1000)
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    const tenths = Math.floor((ms % 1000) / 100)
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${tenths}`
+  }
 
   const SAVED_PROVIDER_KEY = 'modelProvider'
   const savedProvider = localStorage.getItem(SAVED_PROVIDER_KEY)
@@ -1183,6 +1192,31 @@
 
   let activeEs: EventSource | null = null
   let lastAnalysisProvider: string = 'ollama'
+  let timerInterval: number | null = null
+  let timerStartedAt = 0
+
+  function startTimer() {
+    stopTimer()
+    timerEl.classList.remove('timer-final')
+    timerStartedAt = performance.now()
+    timerEl.textContent = '00:00.0'
+    timerInterval = window.setInterval(() => {
+      timerEl.textContent = formatTimer(performance.now() - timerStartedAt)
+    }, 50)
+  }
+
+  function stopTimer() {
+    if (timerInterval !== null) {
+      clearInterval(timerInterval)
+      timerInterval = null
+    }
+  }
+
+  function freezeTimer(ms: number) {
+    stopTimer()
+    timerEl.textContent = formatTimer(ms)
+    timerEl.classList.add('timer-final')
+  }
 
   form.addEventListener('submit', (e) => {
     e.preventDefault()
@@ -1200,6 +1234,7 @@
     resetTimeline()
     progressDiv.style.display = 'block'
     setStage('starting')
+    startTimer()
 
     const provider = providerSelect.value
     lastAnalysisProvider = provider
@@ -1223,11 +1258,17 @@
     es.addEventListener('report', (e: MessageEvent) => {
       try {
         const report = JSON.parse(e.data)
+        if (typeof report.duracionMs === 'number') {
+          freezeTimer(report.duracionMs)
+        } else {
+          stopTimer()
+        }
         markAllDone()
         reportContainer.innerHTML = renderReport(report)
         progressDiv.style.display = 'none'
         wireChatPanel(report.repo)
       } catch (err) {
+        stopTimer()
         stopTimelineSpinner()
         errorText.textContent = 'Error al parsear el reporte'
         errorDiv.style.display = 'block'
@@ -1239,6 +1280,7 @@
       if (!(e as MessageEvent).data) return
       try {
         const { message } = JSON.parse((e as MessageEvent).data)
+        stopTimer()
         stopTimelineSpinner()
         errorText.textContent = message || 'Error durante el análisis'
         errorDiv.style.display = 'block'
@@ -1246,6 +1288,7 @@
     })
 
     es.addEventListener('done', () => {
+      stopTimer()
       stopTimelineSpinner()
       es.close()
       activeEs = null
@@ -1255,6 +1298,7 @@
     es.onerror = () => {
       // Connection failure (not a user-level error event)
       if (es.readyState === EventSource.CLOSED) return
+      stopTimer()
       stopTimelineSpinner()
       errorText.textContent = 'Conexión perdida con el servidor'
       errorDiv.style.display = 'block'
