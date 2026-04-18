@@ -51,11 +51,11 @@
       <span id="timer" class="timer">00:00.0</span>
     </h3>
     <ol id="timeline" class="timeline">
-      <li class="timeline-item" data-stage="starting"><span class="timeline-icon"></span><span class="timeline-label">Iniciando análisis</span></li>
-      <li class="timeline-item" data-stage="fetching_metadata"><span class="timeline-icon"></span><span class="timeline-label">Leyendo estructura del repo</span></li>
-      <li class="timeline-item" data-stage="analyzing_activity"><span class="timeline-icon"></span><span class="timeline-label">Analizando actividad del equipo</span></li>
-      <li class="timeline-item" data-stage="evaluating"><span class="timeline-icon"></span><span class="timeline-label">Evaluando dimensiones técnicas</span></li>
-      <li class="timeline-item" data-stage="generating_report"><span class="timeline-icon"></span><span class="timeline-label">Generando reporte final</span></li>
+      <li class="timeline-item" data-stage="starting"><span class="timeline-icon"></span><span class="timeline-label">Iniciando análisis</span><span class="timeline-phrase"></span></li>
+      <li class="timeline-item" data-stage="fetching_metadata"><span class="timeline-icon"></span><span class="timeline-label">Leyendo estructura del repo</span><span class="timeline-phrase"></span></li>
+      <li class="timeline-item" data-stage="analyzing_activity"><span class="timeline-icon"></span><span class="timeline-label">Analizando actividad del equipo</span><span class="timeline-phrase"></span></li>
+      <li class="timeline-item" data-stage="evaluating"><span class="timeline-icon"></span><span class="timeline-label">Evaluando dimensiones técnicas</span><span class="timeline-phrase"></span></li>
+      <li class="timeline-item" data-stage="generating_report"><span class="timeline-icon"></span><span class="timeline-label">Generando reporte final</span><span class="timeline-phrase"></span></li>
     </ol>
     <details class="reasoning">
       <summary>
@@ -358,6 +358,19 @@
   }
 
   .timeline-item.done { color: var(--text-secondary); }
+
+  .timeline-phrase {
+    margin-left: 12px;
+    font-size: 0.8rem;
+    font-style: italic;
+    color: var(--text-muted);
+    opacity: 0;
+    transition: opacity 0.35s var(--ease-out);
+  }
+
+  .timeline-phrase.visible {
+    opacity: 1;
+  }
 
   .reasoning {
     border-top: 1px solid var(--border-subtle);
