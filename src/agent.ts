@@ -1,5 +1,6 @@
 import { Agent, FileStorage, McpClient, SessionManager } from '@strands-agents/sdk'
 import { OpenAIModel } from '@strands-agents/sdk/models/openai'
+import { AnthropicModel } from '@strands-agents/sdk/models/anthropic'
 import { resolve } from 'node:path'
 import { analyzeRepoStructure } from './tools/github-analyzer.js'
 import { saveAnalysis, getPortfolio, loadPortfolio } from './session/portfolio.js'
@@ -161,13 +162,35 @@ export function createMcp(): Promise<McpClient | null> {
   return createGitHubMcp()
 }
 
-export function buildAgent(mcpClient: McpClient | null, sessionId?: string): Agent {
-  const portfolioContext = buildPortfolioContext()
+function buildModel() {
+  const provider = (process.env.MODEL_PROVIDER || 'ollama').toLowerCase()
 
-  // Ollama expone una API compatible con OpenAI en /v1 — usamos OpenAIModel apuntado al host local.
-  // apiKey es dummy: Ollama no valida pero el cliente OpenAI requiere un string no vacio.
+  if (provider === 'anthropic') {
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) {
+      throw new Error(
+        'MODEL_PROVIDER=anthropic requiere ANTHROPIC_API_KEY en el entorno. ' +
+          'Conseguí una en https://console.anthropic.com/settings/keys y agregala al .env.'
+      )
+    }
+    return new AnthropicModel({
+      modelId: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
+      apiKey,
+      params: {
+        temperature: 0.1,
+      },
+    })
+  }
+
+  if (provider !== 'ollama') {
+    throw new Error(
+      `MODEL_PROVIDER="${provider}" no soportado. Valores válidos: "ollama", "anthropic".`
+    )
+  }
+
+  // Ollama expone API compatible con OpenAI en /v1
   const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434'
-  const model = new OpenAIModel({
+  return new OpenAIModel({
     api: 'chat',
     modelId: process.env.OLLAMA_MODEL || 'llama3.1',
     apiKey: 'ollama',
@@ -177,6 +200,12 @@ export function buildAgent(mcpClient: McpClient | null, sessionId?: string): Age
       baseURL: `${ollamaHost}/v1`,
     },
   })
+}
+
+export function buildAgent(mcpClient: McpClient | null, sessionId?: string): Agent {
+  const portfolioContext = buildPortfolioContext()
+
+  const model = buildModel()
 
   const tools: (typeof analyzeRepoStructure | typeof saveAnalysis | typeof getPortfolio | McpClient)[] = [
     analyzeRepoStructure,

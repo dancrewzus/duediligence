@@ -12,7 +12,9 @@ El proyecto aún no está scaffoldeado — esta guía describe la arquitectura o
 
 - **Runtime:** Node.js 20+, TypeScript ESM (`"type": "module"`)
 - **SDK principal:** `@strands-agents/sdk` (RC en npm) — usar `Agent`, `tool`, `McpClient`
-- **Proveedor LLM:** **Ollama local** — se usa `OpenAIModel` apuntando a `http://localhost:11434/v1` (Ollama expone API OpenAI-compatible). Modelo default: `llama3.1`.
+- **Proveedor LLM:** configurable vía `MODEL_PROVIDER`:
+  - `ollama` (default) — `OpenAIModel` apuntando a `http://localhost:11434/v1` (Ollama expone API OpenAI-compatible). Modelo default: `llama3.1`. Gratis, offline, calidad limitada por tamaño del modelo local.
+  - `anthropic` — `AnthropicModel` con Claude Sonnet 4.5 (default `claude-sonnet-4-5-20250929`). Requiere `ANTHROPIC_API_KEY`. Parsea tool outputs con más precisión; recomendado si ves alucinaciones en métricas con Ollama.
 - **Validación:** `zod` v4 (requerido por `tool()` del SDK)
 - **HTTP:** `axios` para GitHub REST API directa
 - **MCP:** `@modelcontextprotocol/server-github` vía `npx` (sin Docker)
@@ -36,13 +38,16 @@ Scripts en `package.json`:
 Variables de entorno requeridas (`.env`):
 
 ```
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=llama3.1
+OLLAMA_HOST=http://localhost:11434        # solo si MODEL_PROVIDER=ollama
+OLLAMA_MODEL=llama3.1                     # solo si MODEL_PROVIDER=ollama
+MODEL_PROVIDER=ollama                     # "ollama" o "anthropic"
+ANTHROPIC_API_KEY=                        # solo si MODEL_PROVIDER=anthropic
+ANTHROPIC_MODEL=claude-sonnet-4-5-20250929 # opcional, default ya apunta a Sonnet 4.5
 GITHUB_PERSONAL_ACCESS_TOKEN
 PORT=3001
 ```
 
-Prerequisito: tener Ollama corriendo (`ollama serve`) con un modelo descargado (`ollama pull llama3.1`).
+Prerequisito (solo si `MODEL_PROVIDER=ollama`): tener Ollama corriendo (`ollama serve`) con un modelo descargado (`ollama pull llama3.1`). Si usás `MODEL_PROVIDER=anthropic`, no hace falta Ollama.
 
 ## Arquitectura objetivo
 
