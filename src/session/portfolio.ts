@@ -26,14 +26,21 @@ export const saveAnalysis = tool({
     repo: z.string().describe('Full repo name owner/repo'),
     score: z.number().describe('Overall technical score 0-10'),
     sintesisTecnica: z.string().describe('Brief technical synthesis of the analysis in Spanish'),
+    descripcion: z.string().optional().describe('What the project is/does (1-3 sentences, <=500 chars)'),
+    veredictoDetalle: z.string().optional().describe('Verdict detail text in Spanish'),
+    duracionMs: z.number().optional().describe('Analysis duration in milliseconds'),
   }),
   callback: (input) => {
     const portfolio = loadPortfolio()
     const entry: PortfolioEntry = {
       repo: input.repo,
+      repoUrl: `https://github.com/${input.repo}`,
       fecha: new Date().toISOString(),
       score: input.score,
+      duracionMs: input.duracionMs ?? 0,
+      descripcion: input.descripcion ?? '',
       sintesisTecnica: input.sintesisTecnica,
+      veredictoDetalle: input.veredictoDetalle ?? '',
     }
     portfolio.push(entry)
     savePortfolio(portfolio)
@@ -45,9 +52,13 @@ export function persistReport(report: AnalysisReport): void {
   const portfolio = loadPortfolio()
   portfolio.push({
     repo: report.repo,
+    repoUrl: `https://github.com/${report.repo}`,
     fecha: new Date().toISOString(),
     score: report.scoreTotal,
+    duracionMs: report.duracionMs ?? 0,
+    descripcion: report.descripcion ?? '',
     sintesisTecnica: report.sintesisTecnica,
+    veredictoDetalle: report.veredictoDetalle ?? '',
   })
   writeFileSync(PORTFOLIO_PATH, JSON.stringify(portfolio, null, 2), 'utf-8')
 }
