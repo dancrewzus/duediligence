@@ -861,3 +861,867 @@ git commit -m "chore: ajustes menores post smoke test"
 ```
 
 Si no hay cambios: nada que commitear — cerrar el plan acá.
+
+---
+
+## Task 14: Cargar contenido del README en `analyze_repo_structure`
+
+Durante el smoke test el agente no tuvo acceso al contenido del README: la tool solo devolvía `hasReadme` y `readmeLength`. Eso hacía que la `descripcion` se inferiera desde nombres de archivos y la pregunta de chat "¿Para qué LLM me sirve este skill?" disparara respuestas genéricas (el agente describía sus propias capacidades en lugar del repo). Fix: incluir un snippet del README en el output de la tool para que el LLM tenga texto real sobre qué hace el proyecto.
+
+**Files:**
+- Modify: `src/types/index.ts` — agregar `readmeContent: string | null` a `RepoStructure`
+- Modify: `src/tools/github-analyzer.ts` — incluir el contenido truncado en el output
+- Modify: `src/agent.ts` — actualizar el `SYSTEM_PROMPT` para indicar que use `readmeContent` como fuente primaria para `descripcion`
+
+- [ ] **Step 1: Agregar `readmeContent` al tipo `RepoStructure`**
+
+En `src/types/index.ts`, dentro de la interface `RepoStructure` (después del campo `readmeLength`), agregar:
+
+```typescript
+  readmeContent: string | null
+```
+
+Queda así:
+
+```typescript
+export interface RepoStructure {
+  metadata: RepoMetadata
+  rootFiles: string[]
+  packageJson: Record<string, unknown> | null
+  tsconfig: Record<string, unknown> | null
+  hasReadme: boolean
+  readmeLength: number
+  readmeContent: string | null
+  hasEslint: boolean
+  hasPrettier: boolean
+  hasDockerfile: boolean
+  hasDockerCompose: boolean
+  hasCiCd: boolean
+  ciCdFiles: string[]
+}
+```
+
+- [ ] **Step 2: Incluir el snippet del README en el output de la tool**
+
+En `src/tools/github-analyzer.ts`, en la construcción del `structure` object (alrededor de la línea 101), agregar el campo `readmeContent` truncado a 8000 caracteres. Definir una constante y usarla:
+
+Primero, al tope del archivo (después de `const GITHUB_API = ...`), agregar:
+
+```typescript
+const README_SNIPPET_MAX = 8000
+```
+
+Luego, en el `structure` object, agregar `readmeContent`:
+
+```typescript
+    const structure: RepoStructure = {
+      metadata,
+      rootFiles,
+      packageJson: packageJsonRaw ? JSON.parse(packageJsonRaw) : null,
+      tsconfig: tsconfigRaw ? JSON.parse(tsconfigRaw) : null,
+      hasReadme: readmeRaw !== null,
+      readmeLength: readmeRaw?.length ?? 0,
+      readmeContent: readmeRaw ? readmeRaw.slice(0, README_SNIPPET_MAX) : null,
+      hasEslint,
+      hasPrettier,
+      hasDockerfile,
+      hasDockerCompose,
+      hasCiCd: ciCdFiles.length > 0,
+      ciCdFiles,
+    }
+```
+
+**Por qué 8000 chars:** es suficiente para capturar la sección inicial (título + resumen + quickstart) de la mayoría de los READMEs sin inflar el contexto. Un README promedio útil entra entero; los mega-READMEs de 50KB+ quedan truncados al inicio, que es lo relevante.
+
+- [ ] **Step 3: Actualizar el `SYSTEM_PROMPT` para usar `readmeContent` como fuente primaria**
+
+En `src/agent.ts`, dentro del `SYSTEM_PROMPT`, encontrar la línea que describe las fuentes para `descripcion`:
+
+```
+Fuentes, en orden de preferencia: (1) metadata.description de analyze_repo_structure si existe y es informativa, (2) README.md, (3) package.json description, (4) infiere desde dependencias y estructura.
+```
+
+Reemplazar por:
+
+```
+Fuentes, en orden de preferencia: (1) readmeContent de analyze_repo_structure si es informativo — leelo de verdad, no lo ignores, (2) metadata.description si readmeContent está vacío o es pobre, (3) package.json description, (4) inferencia desde dependencias y estructura SOLO como último recurso.
+```
+
+Adicionalmente, en la sección "EVIDENCIA REQUERIDA POR DIMENSIÓN", en el bullet de `documentacionDx`, reemplazar:
+
+```
+- documentacionDx: README presente, longitud útil (no vacío), quickstart, ejemplos de código, API docs, CONTRIBUTING.md, changelog, badges.
+```
+
+por:
+
+```
+- documentacionDx: README presente y su calidad real (leé readmeContent — ¿tiene quickstart?, ¿ejemplos de código?, ¿explica la API?, ¿o es solo un título y badges?). Presencia de CONTRIBUTING.md, changelog.
+```
+
+- [ ] **Step 4: Verificar tipado + commit**
+
+```bash
+npx tsc --noEmit
+git add src/types/index.ts src/tools/github-analyzer.ts src/agent.ts
+git commit -m "feat(analyzer): incluir snippet del README en el output de analyze_repo_structure"
+```
+
+Expected: `tsc --noEmit` clean.
+
+- [ ] **Step 5: Smoke test rápido con un repo conocido**
+
+Arrancar el backend si no está corriendo:
+
+```bash
+npm run dev:server
+```
+
+Desde el browser, analizar `https://github.com/nextlevelbuilder/ui-ux-pro-max-skill` (el repo del reporte fallido). Verificar:
+- [ ] En la consola del backend, al llamar `analyze_repo_structure`, el output incluye `"readmeContent": "..."` con texto real del README.
+- [ ] La `descripcion` generada por el agente refleja contenido del README (no solo inferencia de directorios).
+
+Si el README sigue sin aparecer en el output, hay un bug — escalate.
+
+---
+
+## Task 15: Endurecer `CHAT_SYSTEM_PROMPT` contra auto-descripción
+
+En el smoke test, cuando el dev preguntó "¿Para qué LLM me sirve este skill?", llama3.1 confundió "este skill" (el repo analizado) con las capacidades del propio agente de due diligence y vendió las features del agente en vez de analizar el repo. Fix: reforzar el prompt de chat para anclar explícitamente "este repo / este skill / esta librería" al repositorio analizado, y prohibir auto-descripción.
+
+**Files:**
+- Modify: `src/agent.ts` — ajustar `CHAT_SYSTEM_PROMPT`
+
+- [ ] **Step 1: Agregar reglas anti-auto-descripción al `CHAT_SYSTEM_PROMPT`**
+
+En `src/agent.ts`, encontrar el `CHAT_SYSTEM_PROMPT` actual y reemplazarlo por:
+
+```typescript
+const CHAT_SYSTEM_PROMPT = `Eres un staff engineer con 15 años de experiencia que ya revisó este repo y emitió el reporte.
+
+CONTEXTO: En turnos anteriores de esta conversación aparece un bloque \`\`\`json con el reporte técnico completo. Ese reporte YA FUE ENTREGADO — no lo repitas, no lo reescribas, no emitas otro JSON. El dev ya lo tiene.
+
+REGLA DE REFERENCIA (crítica — si fallás acá, el dev queda confundido):
+Cuando el dev diga "este repo", "este skill", "esta librería", "este proyecto", "esto", o cualquier demostrativo, SIEMPRE se refiere al REPOSITORIO ANALIZADO (el que aparece en el campo "repo" del reporte JSON anterior), NUNCA a vos como agente, NUNCA a la herramienta de due diligence.
+
+PROHIBIDO describir tus propias capacidades como agente ("puedo evaluar repos", "te ayudo a analizar proyectos", "sirvo para tomar decisiones", etc.). El dev no te preguntó qué hacés vos — te preguntó sobre el repo que acabás de analizar. Si tu respuesta empieza con "Este skill/repo te puede servir para..." y seguís describiendo funciones de análisis de GitHub, estás describiendo a vos mismo — detenete y releé la pregunta apuntando al repo analizado.
+
+AHORA ESTÁS EN MODO CONVERSACIÓN. Reglas absolutas:
+- PROHIBIDO emitir bloques \`\`\`json, \`\`\`, o cualquier formato estructurado tipo schema. Si tu respuesta empieza con \`{\` o \`\`\`\`, está mal.
+- Respondé SIEMPRE en prosa natural en español, en 2 a 5 oraciones. Podés usar listas markdown con guiones si aclaran.
+- El reporte (incluyendo descripcion, tecnologias y scores) está en tu memoria — usalo como fuente principal, pero respondé a la pregunta específica del dev sobre el REPO ANALIZADO, no resumas todo el reporte.
+- Si la pregunta requiere info que no está en el reporte (ej. detalles de implementación interna, comparación con otro repo no analizado), decilo explícitamente: "No tengo ese dato en el reporte" — no inventes.
+- No llames tools salvo que la pregunta exija datos nuevos que no tengas.
+- Tono directo, técnico, objetivo. No suavices problemas. Hablás de adopción/integración/forks, no de inversión.
+
+Si tu primer impulso es escribir \`\`\`json o describir tus capacidades como agente, detenete: estás en modo conversación, y el sujeto es el REPO ANALIZADO.`
+```
+
+**Cambios respecto al prompt actual**:
+- Nueva sección "REGLA DE REFERENCIA" que fija "este repo / este skill" al repositorio analizado.
+- Nueva sección "PROHIBIDO describir tus propias capacidades" con un ejemplo concreto del error observado.
+- Regla nueva: "Si la pregunta requiere info que no está en el reporte, decilo explícitamente — no inventes."
+- Cierre reforzado: "el sujeto es el REPO ANALIZADO".
+
+- [ ] **Step 2: Verificar tipado + commit**
+
+```bash
+npx tsc --noEmit
+git add src/agent.ts
+git commit -m "feat(agent): reforzar chat prompt contra auto-descripción y fijar referente 'este repo'"
+```
+
+Expected: `tsc --noEmit` clean.
+
+- [ ] **Step 3: Smoke test rápido del chat**
+
+Con el backend corriendo, analizar cualquier repo. En el chat hacer preguntas con pronombres ambiguos, por ejemplo:
+- "¿para qué sirve este skill?"
+- "¿podés usarlo en producción?"
+- "¿cómo se compara con otros del mismo tipo?"
+
+Verificar:
+- [ ] La respuesta describe el REPO ANALIZADO, no las capacidades del agente.
+- [ ] Si la pregunta excede los datos del reporte, el agente dice "no tengo ese dato" en vez de inventar.
+- [ ] No emite JSON.
+
+---
+
+## Task 16: Feature flag `MODEL_PROVIDER` — agregar Anthropic API
+
+Durante el smoke test con llama3.1:8b (vía Ollama) se observaron alucinaciones en métricas específicas (ej. "último commit hace 2 meses" cuando en realidad fue hace 2 semanas). Es limitación de un modelo chico parseando outputs grandes de tools. Fix: permitir elegir el provider vía env var y agregar soporte para Anthropic API (Claude Sonnet 4.5) como alternativa más confiable, sin romper la opción local.
+
+**Decisión:** feature flag (no swap). Default sigue siendo Ollama (no rompe setup existente). Anthropic se activa con `MODEL_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`.
+
+**Modelo default para Anthropic:** `claude-sonnet-4-5-20250929`. Balance calidad/costo para análisis estructurado (~$0.04-0.08 por reporte).
+
+**Files:**
+- Modify: `package.json` — agregar dep `@anthropic-ai/sdk`
+- Modify: `src/agent.ts` — factorizar selección de modelo en helper, agregar rama Anthropic
+- Modify: `.env.example` — documentar variables nuevas
+- Modify: `CLAUDE.md` — actualizar sección de stack con opción Anthropic
+
+- [ ] **Step 1: Instalar `@anthropic-ai/sdk`**
+
+```bash
+npm install @anthropic-ai/sdk
+```
+
+Expected: dep agregada a `package.json` y `package-lock.json` actualizado. Sin breaking changes — es peer de `@strands-agents/sdk`.
+
+- [ ] **Step 2: Agregar helper `buildModel` en `src/agent.ts`**
+
+En `src/agent.ts`, importar `AnthropicModel` al top (cerca del import de `OpenAIModel`):
+
+```typescript
+import { AnthropicModel } from '@strands-agents/sdk/models/anthropic'
+```
+
+Dentro de `buildAgent(mcpClient, sessionId?)`, reemplazar el bloque actual de instanciación del modelo (las ~10 líneas que empiezan con `const ollamaHost = ...` y terminan con `})`) por una llamada a un nuevo helper. Agregar el helper fuera de `buildAgent` (antes de su definición, al nivel del módulo):
+
+```typescript
+function buildModel() {
+  const provider = (process.env.MODEL_PROVIDER || 'ollama').toLowerCase()
+
+  if (provider === 'anthropic') {
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) {
+      throw new Error(
+        'MODEL_PROVIDER=anthropic requiere ANTHROPIC_API_KEY en el entorno. ' +
+          'Conseguí una en https://console.anthropic.com/settings/keys y agregala al .env.'
+      )
+    }
+    return new AnthropicModel({
+      modelId: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
+      apiKey,
+      params: {
+        temperature: 0.1,
+      },
+    })
+  }
+
+  if (provider !== 'ollama') {
+    throw new Error(
+      `MODEL_PROVIDER="${provider}" no soportado. Valores válidos: "ollama", "anthropic".`
+    )
+  }
+
+  // Ollama expone API compatible con OpenAI en /v1
+  const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434'
+  return new OpenAIModel({
+    api: 'chat',
+    modelId: process.env.OLLAMA_MODEL || 'llama3.1',
+    apiKey: 'ollama',
+    temperature: 0.1,
+    topP: 0.9,
+    clientConfig: {
+      baseURL: `${ollamaHost}/v1`,
+    },
+  })
+}
+```
+
+En `buildAgent`, reemplazar el bloque del modelo con:
+
+```typescript
+  const model = buildModel()
+```
+
+(Eliminar las líneas actuales que construyen el `OpenAIModel` inline y el comentario sobre Ollama — ya están dentro de `buildModel`.)
+
+**Notas importantes**:
+- `AnthropicModel` usa `params.temperature` (no `temperature` top-level — ver `AnthropicModelConfig` extends `BaseModelConfig`, `temperature` no existe; los params extra van en `params`).
+- Fail-fast explícito si falta `ANTHROPIC_API_KEY` — mejor un error claro que un 401 cryptic más tarde.
+- Fail-fast también si `MODEL_PROVIDER` es un valor desconocido (typo protection).
+
+- [ ] **Step 3: Verificar tipado**
+
+```bash
+npx tsc --noEmit
+```
+
+Expected: clean.
+
+Si hay error de tipo en `AnthropicModel` al pasar `params.temperature`, leé `node_modules/@strands-agents/sdk/dist/src/models/anthropic.d.ts` para confirmar la forma exacta del config. El type `AnthropicModelConfig` tiene `params?: Record<string, unknown>`, así que `temperature` dentro de `params` es válido (se pasa tal cual a la API de Anthropic).
+
+- [ ] **Step 4: Actualizar `.env.example`**
+
+Al final de `.env.example`, agregar:
+
+```
+# Model provider: "ollama" (default) o "anthropic"
+MODEL_PROVIDER=ollama
+
+# Anthropic API (solo si MODEL_PROVIDER=anthropic)
+# Obtené una API key en https://console.anthropic.com/settings/keys
+ANTHROPIC_API_KEY=
+ANTHROPIC_MODEL=claude-sonnet-4-5-20250929
+```
+
+- [ ] **Step 5: Actualizar `CLAUDE.md`**
+
+En `CLAUDE.md`, en la sección "Stack y comandos" → subsección donde menciona "Proveedor LLM: Ollama local", reemplazar:
+
+```
+- **Proveedor LLM:** **Ollama local** — se usa `OpenAIModel` apuntando a `http://localhost:11434/v1` (Ollama expone API OpenAI-compatible). Modelo default: `llama3.1`.
+```
+
+con:
+
+```
+- **Proveedor LLM:** configurable vía `MODEL_PROVIDER`:
+  - `ollama` (default) — `OpenAIModel` apuntando a `http://localhost:11434/v1` (Ollama expone API OpenAI-compatible). Modelo default: `llama3.1`. Gratis, offline, calidad limitada por tamaño del modelo local.
+  - `anthropic` — `AnthropicModel` con Claude Sonnet 4.5 (default `claude-sonnet-4-5-20250929`). Requiere `ANTHROPIC_API_KEY`. Parsea tool outputs con más precisión; recomendado si ves alucinaciones en métricas con Ollama.
+```
+
+En la sección "Variables de entorno requeridas (.env):", reemplazar el bloque por:
+
+```
+OLLAMA_HOST=http://localhost:11434        # solo si MODEL_PROVIDER=ollama
+OLLAMA_MODEL=llama3.1                     # solo si MODEL_PROVIDER=ollama
+MODEL_PROVIDER=ollama                     # "ollama" o "anthropic"
+ANTHROPIC_API_KEY=                        # solo si MODEL_PROVIDER=anthropic
+ANTHROPIC_MODEL=claude-sonnet-4-5-20250929 # opcional, default ya apunta a Sonnet 4.5
+GITHUB_PERSONAL_ACCESS_TOKEN
+PORT=3001
+```
+
+Y cerca del prerequisito sobre Ollama, aclarar:
+
+```
+Prerequisito (solo si `MODEL_PROVIDER=ollama`): tener Ollama corriendo (`ollama serve`) con un modelo descargado (`ollama pull llama3.1`). Si usás `MODEL_PROVIDER=anthropic`, no hace falta Ollama.
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add package.json package-lock.json src/agent.ts .env.example CLAUDE.md
+git commit -m "feat(agent): feature flag MODEL_PROVIDER con soporte Anthropic API (Claude Sonnet 4.5)"
+```
+
+- [ ] **Step 7: Smoke test con Anthropic**
+
+En tu `.env` local:
+```
+MODEL_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-...   # tu key
+```
+
+Reiniciar el backend (`tsx watch` debería detectarlo solo si el proceso sigue vivo; si no, `npm run dev:server`).
+
+Re-analizar `https://github.com/nextlevelbuilder/ui-ux-pro-max-skill` en el browser.
+
+Verificar:
+- [ ] `descripcion` coherente con el README.
+- [ ] `ultimoCommitHace` coincide con la realidad (no alucina).
+- [ ] Chat responde sobre el repo, no describe el agente.
+- [ ] Reporte completo llega en ~20-40 segundos (latencia aceptable de Sonnet).
+
+Si el reporte es coherente, el fix validó. Si seguís viendo alucinaciones con Sonnet, hay un bug más profundo en la tool (no el modelo) — escalate.
+
+---
+
+## Task 17: Reemplazar Anthropic API por AWS Bedrock
+
+Durante el smoke test de Task 16 el usuario optó por no usar Anthropic API y migrar a AWS Bedrock. Task 17 revierte la integración de Anthropic y agrega Bedrock en su lugar, manteniendo el feature flag `MODEL_PROVIDER=ollama|bedrock`.
+
+**Por qué Bedrock en vez de Anthropic API:**
+- Billing unificado via AWS (no hay que manejar cuenta extra en console.anthropic.com).
+- Misma calidad de modelo (Claude Sonnet 4.5 corre idéntico en ambas).
+- `@aws-sdk/client-bedrock-runtime` ya está instalado como dep transitiva de Strands SDK — cero instalaciones nuevas.
+
+**Auth de Bedrock:** el provider soporta dos modos:
+1. **API key (bearer token)** — si definís `BEDROCK_API_KEY`, se usa directo. Setup más simple (generar la key en AWS console).
+2. **SigV4 (credenciales AWS estándar)** — si no hay `BEDROCK_API_KEY`, el SDK resuelve credenciales del entorno: `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`, `~/.aws/credentials`, o IAM role.
+
+El código no elige — pasamos `apiKey` si existe, y sino dejamos que el cliente resuelva SigV4 solo. Si no hay ningún auth configurado, AWS devuelve un error claro al primer request.
+
+**Modelo default:** `us.anthropic.claude-sonnet-4-5-20250929-v1:0` (inference profile cross-region US). Requiere que el usuario tenga acceso al modelo habilitado en la consola de Bedrock (one-click en us-east-1).
+
+**Files:**
+- Modify: `package.json` — quitar `@anthropic-ai/sdk`
+- Modify: `src/agent.ts` — quitar branch `anthropic`, agregar branch `bedrock`
+- Modify: `.env.example` — reemplazar vars Anthropic por vars Bedrock
+- Modify: `CLAUDE.md` — actualizar docs de provider
+
+- [ ] **Step 1: Desinstalar `@anthropic-ai/sdk`**
+
+```bash
+npm uninstall @anthropic-ai/sdk
+```
+
+Expected: `package.json` y `package-lock.json` actualizados, la dep desaparece.
+
+- [ ] **Step 2: Swap del branch en `src/agent.ts`**
+
+En `src/agent.ts`:
+
+**a)** Quitar la línea de import:
+```typescript
+import { AnthropicModel } from '@strands-agents/sdk/models/anthropic'
+```
+
+**b)** Agregar el import de `BedrockModel`:
+```typescript
+import { BedrockModel } from '@strands-agents/sdk/models/bedrock'
+```
+
+**c)** En `buildModel()`, reemplazar el branch `anthropic` completo por:
+
+```typescript
+  if (provider === 'bedrock') {
+    const options: {
+      modelId: string
+      region: string
+      temperature: number
+      apiKey?: string
+    } = {
+      modelId: process.env.BEDROCK_MODEL || 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+      region: process.env.AWS_REGION || 'us-east-1',
+      temperature: 0.1,
+    }
+    const apiKey = process.env.BEDROCK_API_KEY
+    if (apiKey) {
+      options.apiKey = apiKey
+    }
+    return new BedrockModel(options)
+  }
+```
+
+**d)** Actualizar el error handler del provider desconocido:
+
+```typescript
+  if (provider !== 'ollama') {
+    throw new Error(
+      `MODEL_PROVIDER="${provider}" no soportado. Valores válidos: "ollama", "bedrock".`
+    )
+  }
+```
+
+El resto de `buildModel()` (branch Ollama) queda igual.
+
+**Notas**:
+- `BedrockModel` acepta `temperature` y `topP` como propiedades top-level (no en `params` como `AnthropicModel`). Consultá `node_modules/@strands-agents/sdk/dist/src/models/bedrock.d.ts` si hay dudas.
+- No validamos presencia de credenciales AWS: si no hay API key ni SigV4 resuelve, el SDK falla con error explícito al primer request. Mejor que validar por nuestra cuenta (no sabemos si el user tiene IAM role, SSO, etc.).
+- El `apiKey` se asigna condicional porque pasar `undefined` explícito puede hacer que el cliente intente bearer auth con token vacío.
+
+- [ ] **Step 3: Verificar tipado**
+
+```bash
+npx tsc --noEmit
+```
+
+Expected: clean.
+
+- [ ] **Step 4: Actualizar `.env.example`**
+
+Reemplazar el bloque Anthropic que agregaste en Task 16 (líneas tipo `MODEL_PROVIDER=ollama`, `ANTHROPIC_API_KEY=`, `ANTHROPIC_MODEL=...`) por:
+
+```
+# Model provider: "ollama" (default) o "bedrock"
+MODEL_PROVIDER=ollama
+
+# AWS Bedrock (solo si MODEL_PROVIDER=bedrock)
+# Auth: definí BEDROCK_API_KEY (bearer) o usá credenciales AWS estándar (AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY, o ~/.aws/credentials, o IAM role).
+# Requiere acceso habilitado al modelo en https://console.aws.amazon.com/bedrock/home#/modelaccess
+AWS_REGION=us-east-1
+BEDROCK_API_KEY=
+BEDROCK_MODEL=us.anthropic.claude-sonnet-4-5-20250929-v1:0
+```
+
+- [ ] **Step 5: Actualizar `CLAUDE.md`**
+
+En la sección "Stack y comandos", reemplazar el bullet de Anthropic (el sub-bullet con `AnthropicModel` que agregaste en Task 16) por:
+
+```
+  - `bedrock` — `BedrockModel` con Claude Sonnet 4.5 (default `us.anthropic.claude-sonnet-4-5-20250929-v1:0`). Auth vía `BEDROCK_API_KEY` (bearer) o credenciales AWS estándar. Billing y governance unificados con AWS; requiere habilitar acceso al modelo en la consola de Bedrock.
+```
+
+En el bloque de variables de entorno, reemplazar `ANTHROPIC_API_KEY` y `ANTHROPIC_MODEL` por:
+
+```
+AWS_REGION=us-east-1                         # solo si MODEL_PROVIDER=bedrock
+BEDROCK_API_KEY=                             # opcional: bearer token; si no, se usa SigV4
+BEDROCK_MODEL=us.anthropic.claude-sonnet-4-5-20250929-v1:0  # opcional, default ya apunta a Sonnet 4.5
+```
+
+Y en el prerequisito:
+
+```
+Prerequisito (solo si `MODEL_PROVIDER=ollama`): tener Ollama corriendo (`ollama serve`) con un modelo descargado (`ollama pull llama3.1`). Si usás `MODEL_PROVIDER=bedrock`, no hace falta Ollama — pero necesitás acceso habilitado al modelo en la consola de Bedrock y credenciales AWS configuradas.
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add package.json package-lock.json src/agent.ts .env.example CLAUDE.md
+git commit -m "feat(agent): reemplazar Anthropic API por AWS Bedrock (Claude Sonnet 4.5)"
+```
+
+- [ ] **Step 7: Smoke test con Bedrock**
+
+Editá tu `.env` local:
+```
+MODEL_PROVIDER=bedrock
+AWS_REGION=us-east-1
+BEDROCK_API_KEY=<tu bearer key>    # o dejalo vacío y configurá AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY
+```
+
+Reiniciar el backend. Re-analizar `https://github.com/nextlevelbuilder/ui-ux-pro-max-skill`. Verificar:
+- [ ] `descripcion` coherente con el README.
+- [ ] `ultimoCommitHace` exacto (no alucina).
+- [ ] Chat responde sobre el repo, no describe el agente.
+- [ ] Latencia razonable (~20-40s).
+
+Si ves un error 400/403, chequeá que el modelo esté habilitado en tu cuenta de Bedrock (https://console.aws.amazon.com/bedrock/home#/modelaccess) y que la región del `AWS_REGION` coincide con donde tenés el acceso.
+
+---
+
+## Task 18: Selector de provider en el frontend
+
+Hoy `MODEL_PROVIDER` se define en el `.env` y al reiniciar. El pill del hero dice "Strands Agents · Ollama local" estático — ni refleja lo que realmente está corriendo, ni permite cambiar sin reiniciar. Fix: convertir el pill en un `<select>` con opciones Ollama / Bedrock, pasar el valor elegido como query param en los endpoints de analyze y chat, y persistir la elección en `localStorage`.
+
+**Diseño:**
+- UI: reemplazar el segundo span del `.hero-pill` por un `<select>` nativo estilizado con `appearance: none`. Dos opciones: `Ollama local` (value=`ollama`), `AWS Bedrock` (value=`bedrock`). Estética idéntica al pill actual — mismo font, color, border, dot.
+- Estado: el `.env` `MODEL_PROVIDER` sigue siendo el default del server. El frontend arranca seleccionando `ollama` salvo que `localStorage.modelProvider` tenga otro valor guardado de una sesión anterior. Cada cambio de select guarda a localStorage.
+- API: agregar query param opcional `?provider=ollama|bedrock` en `/api/analyze/stream` y `/api/chat/stream`. Si el param llega, el server lo usa como override para esa request; si no llega, se cae al env var (compat con CLI).
+- Propagación: el valor del select al hacer "Analizar" se snapshotea (guardado en una variable del front) — el chat subsecuente usa ese mismo valor aunque el user cambie el select después, para no mezclar providers en la misma sesión analizada.
+
+**Files:**
+- Modify: `src/agent.ts` — `buildModel(providerOverride?)` y `buildAgent(mcpClient, sessionId?, providerOverride?)`
+- Modify: `src/server.ts` — leer `provider` query param en ambos endpoints y pasarlo a `buildAgent`
+- Modify: `web/src/components/AnalysisForm.astro` — replace pill, wire select, propagate on requests
+
+- [ ] **Step 1: `buildModel` y `buildAgent` aceptan override**
+
+En `src/agent.ts`, cambiar la firma de `buildModel`:
+
+```typescript
+function buildModel(providerOverride?: string) {
+  const provider = (providerOverride || process.env.MODEL_PROVIDER || 'ollama').toLowerCase()
+  // ... resto igual
+}
+```
+
+Y cambiar `buildAgent` para que acepte y propague:
+
+```typescript
+export function buildAgent(mcpClient: McpClient | null, sessionId?: string, providerOverride?: string): Agent {
+  const portfolioContext = buildPortfolioContext()
+
+  const model = buildModel(providerOverride)
+  // ... resto igual
+}
+```
+
+- [ ] **Step 2: Endpoints leen `provider` query param**
+
+En `src/server.ts`, en el handler de `/api/analyze/stream`:
+
+Encontrar la línea que construye el agent:
+```typescript
+      const agent = buildAgent(mcpClient, sessionId)
+```
+
+Reemplazar por:
+```typescript
+      const provider = c.req.query('provider')
+      const agent = buildAgent(mcpClient, sessionId, provider)
+```
+
+**Importante:** ubicar este cambio DESPUÉS del `parseRepoUrl` check y ANTES del `deleteSession`, dentro del `try` block (o justo antes de `await emitStage('starting')`). El `provider` solo se usa para `buildAgent`.
+
+Hacer lo mismo en `/api/chat/stream`:
+
+Encontrar:
+```typescript
+      const agent = buildAgent(mcpClient, sessionId)
+```
+
+Reemplazar por:
+```typescript
+      const provider = c.req.query('provider')
+      const agent = buildAgent(mcpClient, sessionId, provider)
+```
+
+- [ ] **Step 3: Verificar tsc backend**
+
+```bash
+npx tsc --noEmit
+```
+
+Expected: clean.
+
+- [ ] **Step 4: Reemplazar pill por select en `AnalysisForm.astro`**
+
+En `web/src/components/AnalysisForm.astro`, encontrar el bloque del pill (alrededor de líneas 7-10):
+
+```html
+    <div class="hero-pill">
+      <span class="hero-pill-dot"></span>
+      <span>Strands Agents · Ollama local</span>
+    </div>
+```
+
+Reemplazar por:
+
+```html
+    <div class="hero-pill">
+      <span class="hero-pill-dot"></span>
+      <span class="hero-pill-label">Strands Agents</span>
+      <span class="hero-pill-separator" aria-hidden="true">·</span>
+      <select id="provider-select" class="hero-pill-select" aria-label="Proveedor del modelo">
+        <option value="ollama">Ollama local</option>
+        <option value="bedrock">AWS Bedrock</option>
+      </select>
+    </div>
+```
+
+- [ ] **Step 5: Estilos del select en `AnalysisForm.astro`**
+
+Dentro del bloque `<style>` (el scoped — no el `is:global`), debajo de `.hero-pill-dot { ... }` (alrededor de línea 100-107), agregar:
+
+```css
+  .hero-pill-label { color: var(--text-secondary); }
+
+  .hero-pill-separator {
+    color: var(--text-muted);
+    margin: 0 2px;
+  }
+
+  .hero-pill-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font: inherit;
+    cursor: pointer;
+    padding: 0 18px 0 0;
+    position: relative;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23a8a8b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right center;
+    background-size: 10px 10px;
+  }
+
+  .hero-pill-select:focus {
+    outline: none;
+  }
+
+  .hero-pill-select option {
+    background: #1a1a2e;
+    color: var(--text-primary);
+  }
+```
+
+Notas:
+- `appearance: none` saca los estilos nativos del browser.
+- El chevron viene inline como SVG (color `%23a8a8b8` = `#a8a8b8`) para no depender de asset externo.
+- Los `<option>` tienen fondo sólido oscuro para que se vean bien cuando el dropdown se abre (el browser los renderiza con estilos del sistema, pero respeta background y color).
+
+- [ ] **Step 6: Wiring del select en el script**
+
+En el bloque `<script>`, encontrar el bloque de declaraciones de elementos (alrededor de `const form = document.getElementById(...)`, línea ~770). Agregar:
+
+```typescript
+  const providerSelect = document.getElementById('provider-select') as HTMLSelectElement
+```
+
+Inmediatamente después, restaurar selección desde localStorage + persistir cambios:
+
+```typescript
+  const SAVED_PROVIDER_KEY = 'modelProvider'
+  const savedProvider = localStorage.getItem(SAVED_PROVIDER_KEY)
+  if (savedProvider === 'ollama' || savedProvider === 'bedrock') {
+    providerSelect.value = savedProvider
+  }
+  providerSelect.addEventListener('change', () => {
+    localStorage.setItem(SAVED_PROVIDER_KEY, providerSelect.value)
+  })
+```
+
+- [ ] **Step 7: Propagar provider en request de analyze**
+
+En el form submit handler (alrededor de línea 1094-1111), encontrar:
+
+```typescript
+    const es = new EventSource(`${API_BASE}/api/analyze/stream?repoUrl=${encodeURIComponent(url)}`)
+```
+
+Reemplazar por:
+
+```typescript
+    const provider = providerSelect.value
+    const es = new EventSource(`${API_BASE}/api/analyze/stream?repoUrl=${encodeURIComponent(url)}&provider=${encodeURIComponent(provider)}`)
+```
+
+Y guardar el provider al momento del analyze para que el chat subsecuente lo use (no queremos que si el user cambia el select después del analyze, el chat arranque con otro modelo). Agregar como variable de módulo (al lado de `let activeEs: EventSource | null = null`):
+
+```typescript
+  let lastAnalysisProvider: string = 'ollama'
+```
+
+Y dentro del submit handler, justo después de leer `provider`:
+
+```typescript
+    lastAnalysisProvider = provider
+```
+
+- [ ] **Step 8: Propagar provider en request de chat**
+
+En la función `wireChatPanel(repoFullName)`, encontrar el EventSource URL del chat (alrededor de línea 1043-1047):
+
+```typescript
+      const url =
+        `${API_BASE}/api/chat/stream` +
+        `?repoUrl=${encodeURIComponent(buildRepoUrl(repoFullName))}` +
+        `&message=${encodeURIComponent(msg)}`
+```
+
+Reemplazar por:
+
+```typescript
+      const url =
+        `${API_BASE}/api/chat/stream` +
+        `?repoUrl=${encodeURIComponent(buildRepoUrl(repoFullName))}` +
+        `&message=${encodeURIComponent(msg)}` +
+        `&provider=${encodeURIComponent(lastAnalysisProvider)}`
+```
+
+- [ ] **Step 9: Verificar build del web**
+
+```bash
+cd web && npm run build
+```
+
+Expected: success.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add src/agent.ts src/server.ts web/src/components/AnalysisForm.astro
+git commit -m "feat(web): selector de provider (ollama/bedrock) en el hero + propagación a backend"
+```
+
+- [ ] **Step 11: Smoke test**
+
+Reiniciar backend. En el browser:
+- [ ] El pill del hero ahora tiene un select con "Ollama local" seleccionado por default.
+- [ ] Cambiar a "AWS Bedrock", analizar un repo → la request usa Bedrock (ver logs del backend, o comprobar alucinaciones vs correctness).
+- [ ] En el chat, la conversación sigue usando Bedrock (no vuelve a Ollama aunque cambies el select después).
+- [ ] Reload del browser → la selección previa persiste.
+- [ ] Cambiar a "Ollama local", analizar un repo distinto → usa Ollama.
+- [ ] Sin cambiar el `.env`, podés alternar providers desde la UI.
+
+---
+
+## Task 19: Fix Bedrock API key auth — bypass SigV4 credential chain
+
+Durante el smoke test con `BEDROCK_API_KEY` seteado, el backend devuelve `"Could not load credentials from any providers"`. Causa raíz: el middleware del Strands SDK (`applyApiKey`) inserta el header `Authorization: Bearer <key>` en el step `finalizeRequest` con `priority: 'low'`, pero el AWS SDK v3 corre el credential chain de SigV4 ANTES (con priority alta) — falla por falta de credenciales antes de que llegue el middleware del API key.
+
+**Fix:** cuando hay `BEDROCK_API_KEY`, pasar un credentials provider dummy en `clientConfig.credentials`. Las credenciales dummy satisfacen el chain de SigV4 (no falla) y se usan para firmar — pero el middleware del API key sobreescribe el header `Authorization` al final, así que la request real sale con `Bearer <key>` (auth correcta) y no con la firma SigV4 dummy.
+
+**Files:**
+- Modify: `src/agent.ts` — actualizar branch `bedrock` en `buildModel`
+- Modify: `.env.example` — agregar nota explicativa sobre el workaround
+
+- [ ] **Step 1: Actualizar el branch bedrock en `buildModel`**
+
+En `src/agent.ts`, reemplazar el branch actual de bedrock:
+
+```typescript
+  if (provider === 'bedrock') {
+    const options: {
+      modelId: string
+      region: string
+      temperature: number
+      apiKey?: string
+    } = {
+      modelId: process.env.BEDROCK_MODEL || 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+      region: process.env.AWS_REGION || 'us-east-1',
+      temperature: 0.1,
+    }
+    const apiKey = process.env.BEDROCK_API_KEY
+    if (apiKey) {
+      options.apiKey = apiKey
+    }
+    return new BedrockModel(options)
+  }
+```
+
+por:
+
+```typescript
+  if (provider === 'bedrock') {
+    const modelId = process.env.BEDROCK_MODEL || 'us.anthropic.claude-sonnet-4-5-20250929-v1:0'
+    const region = process.env.AWS_REGION || 'us-east-1'
+    const apiKey = process.env.BEDROCK_API_KEY
+
+    if (apiKey) {
+      // Bedrock API key (bearer token) auth.
+      // El middleware applyApiKey del Strands SDK inserta `Authorization: Bearer <key>` al final
+      // (finalizeRequest, priority low), pero AWS SDK v3 corre SigV4 con priority alta ANTES y
+      // falla con "Could not load credentials" si no encuentra creds. Workaround: pasar creds
+      // dummy para que el chain de SigV4 no explote — el middleware sobreescribe el header al
+      // final, así que la request sale con Bearer auth real.
+      return new BedrockModel({
+        modelId,
+        region,
+        temperature: 0.1,
+        apiKey,
+        clientConfig: {
+          credentials: async () => ({
+            accessKeyId: 'bedrock-api-key-noop',
+            secretAccessKey: 'bedrock-api-key-noop',
+          }),
+        },
+      })
+    }
+
+    // Sin API key: caer al credential chain estándar (env vars, ~/.aws/credentials, IAM role).
+    return new BedrockModel({
+      modelId,
+      region,
+      temperature: 0.1,
+    })
+  }
+```
+
+**Notas**:
+- Las creds dummy nunca se usan en la red — el middleware del SDK sobreescribe el `Authorization` header con `Bearer <apiKey>` real.
+- La rama sin API key (Opción B del `.env.example`) queda intacta — sigue usando SigV4 con creds reales.
+
+- [ ] **Step 2: Verificar tipado**
+
+```bash
+npx tsc --noEmit
+```
+
+Expected: clean. Si hay error de tipo en `clientConfig.credentials`, chequear que el tipo de retorno de la función async sea compatible con `AwsCredentialIdentity` del AWS SDK (al menos `accessKeyId` y `secretAccessKey` strings).
+
+- [ ] **Step 3: Actualizar nota en `.env.example`**
+
+En la sección de Opción A en `.env.example`, agregar al final del comentario:
+
+```
+#   Nota: el SDK acepta el bearer token vía middleware pero igual ejecuta el credential chain
+#   de SigV4 antes — el código pasa creds dummy internamente para que no explote, no hace falta
+#   que vos completes AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY si usás esta opción.
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add src/agent.ts .env.example
+git commit -m "fix(agent): bypass SigV4 credential chain cuando se usa BEDROCK_API_KEY (bearer token)"
+```
+
+- [ ] **Step 5: Smoke test con Bedrock API key**
+
+Reiniciar backend. En el browser, cambiar el select a "AWS Bedrock", analizar un repo. Esperar:
+- [ ] El reporte llega completo sin error de credenciales.
+- [ ] Métricas exactas (no alucinadas).
+- [ ] Latencia ~20-40s.
+
+Si seguís viendo "Could not load credentials", significa que el workaround no funciona — el SigV4 signer puede estar fallando en otro punto. En ese caso, fallback a Opción B (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY).

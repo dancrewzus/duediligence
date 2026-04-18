@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env
 portfolio.json
+sesiones/
 web/node_modules/
 web/dist/
 web/.astro/

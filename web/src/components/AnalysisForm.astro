@@ -6,12 +6,17 @@
   <div class="hero">
     <div class="hero-pill">
       <span class="hero-pill-dot"></span>
-      <span>Strands Agents · Ollama local</span>
+      <span class="hero-pill-label">Strands Agents</span>
+      <span class="hero-pill-separator" aria-hidden="true">·</span>
+      <select id="provider-select" class="hero-pill-select" aria-label="Proveedor del modelo">
+        <option value="ollama">Ollama local</option>
+        <option value="bedrock">AWS Bedrock</option>
+      </select>
     </div>
-    <h1 class="hero-title">Due Diligence <span>Técnico</span></h1>
+    <h1 class="hero-title">Evaluación técnica de <span>repositorios</span></h1>
     <p class="hero-subtitle">
-      Evalúa la salud técnica de cualquier startup en GitHub —
-      arquitectura, calidad, equipo y riesgos en segundos.
+      Evaluá stack, mantenimiento, seguridad y madurez de un repositorio público de GitHub
+      antes de adoptarlo, integrarlo o forkearlo.
     </p>
   </div>
 
@@ -43,13 +48,14 @@
     <h3 class="progress-title">
       <span class="progress-dot"></span>
       Progreso del análisis
+      <span id="timer" class="timer">00:00.0</span>
     </h3>
     <ol id="timeline" class="timeline">
-      <li class="timeline-item" data-stage="starting"><span class="timeline-icon"></span><span class="timeline-label">Iniciando análisis</span></li>
-      <li class="timeline-item" data-stage="fetching_metadata"><span class="timeline-icon"></span><span class="timeline-label">Leyendo estructura del repo</span></li>
-      <li class="timeline-item" data-stage="analyzing_activity"><span class="timeline-icon"></span><span class="timeline-label">Analizando actividad del equipo</span></li>
-      <li class="timeline-item" data-stage="evaluating"><span class="timeline-icon"></span><span class="timeline-label">Evaluando dimensiones técnicas</span></li>
-      <li class="timeline-item" data-stage="generating_report"><span class="timeline-icon"></span><span class="timeline-label">Generando reporte final</span></li>
+      <li class="timeline-item" data-stage="starting"><span class="timeline-icon"></span><span class="timeline-label">Iniciando análisis</span><span class="timeline-phrase"></span></li>
+      <li class="timeline-item" data-stage="fetching_metadata"><span class="timeline-icon"></span><span class="timeline-label">Leyendo estructura del repo</span><span class="timeline-phrase"></span></li>
+      <li class="timeline-item" data-stage="analyzing_activity"><span class="timeline-icon"></span><span class="timeline-label">Analizando actividad del equipo</span><span class="timeline-phrase"></span></li>
+      <li class="timeline-item" data-stage="evaluating"><span class="timeline-icon"></span><span class="timeline-label">Evaluando dimensiones técnicas</span><span class="timeline-phrase"></span></li>
+      <li class="timeline-item" data-stage="generating_report"><span class="timeline-icon"></span><span class="timeline-label">Generando reporte final</span><span class="timeline-phrase"></span></li>
     </ol>
     <details class="reasoning">
       <summary>
@@ -104,6 +110,38 @@
     background: var(--accent-cyan);
     box-shadow: 0 0 10px var(--accent-cyan);
     animation: pulseDot 2s ease-in-out infinite;
+  }
+
+  .hero-pill-label { color: var(--text-secondary); }
+
+  .hero-pill-separator {
+    color: var(--text-muted);
+    margin: 0 2px;
+  }
+
+  .hero-pill-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font: inherit;
+    cursor: pointer;
+    padding: 0 18px 0 0;
+    position: relative;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23a8a8b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right center;
+    background-size: 10px 10px;
+  }
+
+  .hero-pill-select:focus {
+    outline: none;
+  }
+
+  .hero-pill-select option {
+    background: #1a1a2e;
+    color: var(--text-primary);
   }
 
   .hero-title {
@@ -213,6 +251,31 @@
     animation: pulseDot 1.4s ease-in-out infinite;
   }
 
+  .progress-title {
+    justify-content: flex-start;
+  }
+
+  .timer {
+    margin-left: auto;
+    font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: 0.02em;
+    padding: 4px 10px;
+    background: rgba(7, 7, 13, 0.4);
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    transition: color 0.3s var(--ease-out), border-color 0.3s var(--ease-out);
+  }
+
+  .timer-final {
+    color: var(--accent-green);
+    border-color: rgba(52, 211, 153, 0.3);
+    background: rgba(52, 211, 153, 0.08);
+  }
+
   .timeline {
     list-style: none;
     display: flex;
@@ -295,6 +358,19 @@
   }
 
   .timeline-item.done { color: var(--text-secondary); }
+
+  .timeline-phrase {
+    margin-left: 12px;
+    font-size: 0.8rem;
+    font-style: italic;
+    color: var(--text-muted);
+    opacity: 0;
+    transition: opacity 0.35s var(--ease-out);
+  }
+
+  .timeline-phrase.visible {
+    opacity: 1;
+  }
 
   .reasoning {
     border-top: 1px solid var(--border-subtle);
@@ -599,6 +675,13 @@
   .deuda-justification { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.6; }
   .report-details { display: flex; gap: 20px; }
   .recommendation-text { font-size: 0.98rem; color: var(--text-secondary); line-height: 1.75; }
+  .veredicto-card { display: flex; flex-direction: column; gap: 16px; }
+  .veredicto-badge-wrap { display: flex; }
+  .veredicto-badge {
+    font-size: 1rem;
+    padding: 8px 20px;
+    letter-spacing: 0.04em;
+  }
 
   .tech-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
   .tech-category-label {
@@ -690,6 +773,78 @@
     .report-details { flex-direction: column; }
     .report-header { flex-direction: column; align-items: flex-start; gap: 20px; }
   }
+
+  .chat-panel { display: flex; flex-direction: column; gap: 16px; }
+  .chat-header { display: flex; flex-direction: column; gap: 4px; }
+  .chat-subtitle { font-size: 0.85rem; color: var(--text-muted); }
+  .chat-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 360px;
+    overflow-y: auto;
+    padding: 4px 2px;
+  }
+  .chat-messages::-webkit-scrollbar { width: 6px; }
+  .chat-messages::-webkit-scrollbar-track { background: transparent; }
+  .chat-messages::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+  .chat-bubble {
+    font-size: 0.92rem;
+    line-height: 1.6;
+    padding: 12px 16px;
+    border-radius: 14px;
+    max-width: 82%;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    border: 1px solid var(--border-subtle);
+    animation: cardIn 0.3s var(--ease-out) both;
+  }
+  .chat-bubble-user {
+    align-self: flex-end;
+    background: rgba(110, 168, 255, 0.12);
+    border-color: rgba(110, 168, 255, 0.3);
+    color: var(--text-primary);
+  }
+  .chat-bubble-assistant {
+    align-self: flex-start;
+    background: rgba(7, 7, 13, 0.5);
+    color: var(--text-secondary);
+  }
+  .chat-bubble-pending {
+    min-width: 48px;
+    min-height: 20px;
+    position: relative;
+  }
+  .chat-bubble-pending::after {
+    content: '···';
+    letter-spacing: 4px;
+    color: var(--text-muted);
+    animation: dotsPulse 1.2s ease-in-out infinite;
+  }
+  @keyframes dotsPulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+  .chat-bubble-error {
+    border-color: rgba(248, 113, 113, 0.4);
+    background: rgba(248, 113, 113, 0.08);
+    color: var(--accent-red);
+  }
+  .chat-form {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .chat-form .input { flex: 1; padding: 12px 16px; font-size: 0.95rem; }
+  .chat-send { padding: 12px 20px; }
+
+  @media (max-width: 640px) {
+    .chat-form { flex-direction: column; }
+    .chat-send { width: 100%; }
+    .chat-bubble { max-width: 100%; }
+  }
 </style>
 
 <script>
@@ -703,8 +858,80 @@
   const errorDiv = document.getElementById('error') as HTMLDivElement
   const errorText = document.getElementById('error-text') as HTMLParagraphElement
   const reportContainer = document.getElementById('report-container') as HTMLDivElement
+  const providerSelect = document.getElementById('provider-select') as HTMLSelectElement
+  const timerEl = document.getElementById('timer') as HTMLSpanElement
+
+  function formatTimer(ms: number): string {
+    const totalSeconds = Math.floor(ms / 1000)
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    const tenths = Math.floor((ms % 1000) / 100)
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${tenths}`
+  }
+
+  const SAVED_PROVIDER_KEY = 'modelProvider'
+  const savedProvider = localStorage.getItem(SAVED_PROVIDER_KEY)
+  if (savedProvider === 'ollama' || savedProvider === 'bedrock') {
+    providerSelect.value = savedProvider
+  }
+  providerSelect.addEventListener('change', () => {
+    localStorage.setItem(SAVED_PROVIDER_KEY, providerSelect.value)
+  })
 
   const STAGE_ORDER = ['starting', 'fetching_metadata', 'analyzing_activity', 'evaluating', 'generating_report']
+
+  const STAGE_PHRASES: Record<string, string[]> = {
+    starting: [
+      'Calentando motores',
+      'Conectando con GitHub',
+      'Armando el caso',
+      'Tomando el primer café',
+      'Revisando credenciales',
+      'Afilando el lápiz',
+      'Abriendo el repo en el IDE mental',
+      'Preparando el checklist',
+    ],
+    fetching_metadata: [
+      'Leyendo package.json',
+      'Espiando el tsconfig',
+      'Contando archivos de config',
+      'Buscando el README',
+      'Mapeando la estructura de carpetas',
+      'Revisando dependencias',
+      'Chequeando linters y formatters',
+      'Viendo si hay Dockerfile',
+    ],
+    analyzing_activity: [
+      'Mirando commits recientes',
+      'Chusmeando el log de git',
+      'Contando contributors activos',
+      'Revisando PRs abiertos',
+      'Viendo qué tan vivo está el repo',
+      'Pulseando la velocidad del equipo',
+      'Buscando bus factor',
+      'Revisando si hay actividad real o es un repo zombi',
+    ],
+    evaluating: [
+      'Puntuando arquitectura',
+      'Midiendo deuda técnica',
+      'Evaluando seguridad',
+      'Cruzando señales',
+      'Pensando como inversor',
+      'Poniendo la lupa en el código',
+      'Contrastando con benchmarks',
+      'Separando el humo del fuego',
+    ],
+    generating_report: [
+      'Redactando veredicto',
+      'Apretando los scores',
+      'Sacando las conclusiones',
+      'Eligiendo las fortalezas',
+      'Listando las banderas',
+      'Dando formato al JSON',
+      'Firmando el reporte',
+      'Haciendo revisión final',
+    ],
+  }
 
   function escapeHtml(s: string): string {
     return String(s)
@@ -732,9 +959,20 @@
     return 'badge-red'
   }
 
+  function getVeredictoBadgeClass(veredicto: string): string {
+    if (veredicto === 'Adoptar') return 'badge-green'
+    if (veredicto === 'Usar con cautela') return 'badge-yellow'
+    if (veredicto === 'Solo referencia') return 'badge-blue'
+    return 'badge-red'
+  }
+
   function resetTimeline() {
     document.querySelectorAll('.timeline-item').forEach((el) => {
       el.classList.remove('running', 'done')
+    })
+    document.querySelectorAll('.timeline-phrase').forEach((el) => {
+      el.classList.remove('visible')
+      el.textContent = ''
     })
     reasoningPre.textContent = ''
   }
@@ -749,6 +987,7 @@
       if (idx < currentIdx) el.classList.add('done')
       if (idx === currentIdx) el.classList.add('running')
     })
+    startPhrasesForStage(stage)
   }
 
   function markAllDone() {
@@ -850,6 +1089,29 @@
     return trimmed.length > MAX ? trimmed.slice(0, MAX - 1).trimEnd() + '…' : trimmed
   }
 
+  function renderChatPanel(repo: string): string {
+    return `
+      <div class="chat-panel card" data-chat-repo="${escapeHtml(repo)}">
+        <div class="chat-header">
+          <h3 class="section-title" style="margin-bottom: 0;">Seguí la conversación</h3>
+          <span class="chat-subtitle">El agente recuerda este repo. Preguntá lo que necesites para decidir si usarlo.</span>
+        </div>
+        <div id="chat-messages" class="chat-messages"></div>
+        <form id="chat-form" class="chat-form">
+          <input
+            type="text"
+            id="chat-input"
+            class="input"
+            placeholder="Ej: ¿es seguro usarlo en producción?, ¿cómo es el onboarding?, ¿tiene alternativas mejores?"
+            autocomplete="off"
+            required
+          />
+          <button type="submit" id="chat-send" class="btn btn-primary chat-send">Enviar</button>
+        </form>
+      </div>
+    `
+  }
+
   function renderReport(r: any): string {
     const totalCls = getScoreClass(r.scoreTotal)
     const fecha = new Date(r.fecha).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -874,10 +1136,11 @@
           <div class="scores-grid">
             ${renderScoreBar('Stack & Arquitectura', r.scores.stackArquitectura)}
             ${renderScoreBar('Calidad de código', r.scores.calidadCodigo)}
-            ${renderScoreBar('Escalabilidad', r.scores.escalabilidad)}
-            ${renderScoreBar('Salud del equipo', r.scores.saludEquipo)}
+            ${renderScoreBar('Documentación & DX', r.scores.documentacionDx)}
+            ${renderScoreBar('Mantenimiento & Actividad', r.scores.mantenimientoActividad)}
             ${renderScoreBar('Seguridad', r.scores.seguridad)}
             ${renderScoreBar('Madurez de dependencias', r.scores.madurezDependencias)}
+            ${renderScoreBar('Testing & CI/CD', r.scores.testingCicd)}
           </div>
           <div class="deuda-row">
             <div class="deuda-left">
@@ -889,23 +1152,205 @@
         </div>
         <div class="report-details">
           <div class="card rsc rsc-risk">
-            <h3 class="rsc-title">Top 3 Riesgos</h3>
-            <ol class="rsc-list">${r.riesgos.map((i: string) => `<li class="rsc-item">${escapeHtml(i)}</li>`).join('')}</ol>
+            <h3 class="rsc-title">Banderas</h3>
+            <ol class="rsc-list">${r.banderas.map((i: string) => `<li class="rsc-item">${escapeHtml(i)}</li>`).join('')}</ol>
           </div>
           <div class="card rsc rsc-strength">
             <h3 class="rsc-title">Top 3 Fortalezas</h3>
             <ol class="rsc-list">${r.fortalezas.map((i: string) => `<li class="rsc-item">${escapeHtml(i)}</li>`).join('')}</ol>
           </div>
         </div>
-        <div class="report-recommendation card">
-          <h3 class="section-title">Recomendación al inversor</h3>
-          <p class="recommendation-text">${escapeHtml(r.recomendacion)}</p>
+        <div class="veredicto-card card">
+          <h3 class="section-title">Veredicto</h3>
+          <div class="veredicto-badge-wrap">
+            <span class="badge veredicto-badge ${getVeredictoBadgeClass(r.veredicto)}">${escapeHtml(r.veredicto)}</span>
+          </div>
+          <p class="recommendation-text">${escapeHtml(r.veredictoDetalle)}</p>
         </div>
+        ${renderChatPanel(r.repo)}
       </div>
     `
   }
 
+  let activeChatEs: EventSource | null = null
+
+  function buildRepoUrl(repoFullName: string): string {
+    return `https://github.com/${repoFullName}`
+  }
+
+  function wireChatPanel(repoFullName: string) {
+    const chatForm = document.getElementById('chat-form') as HTMLFormElement | null
+    const chatInput = document.getElementById('chat-input') as HTMLInputElement | null
+    const chatSend = document.getElementById('chat-send') as HTMLButtonElement | null
+    const messagesEl = document.getElementById('chat-messages') as HTMLDivElement | null
+    if (!chatForm || !chatInput || !chatSend || !messagesEl) return
+
+    function appendBubble(role: 'user' | 'assistant', text: string): HTMLDivElement {
+      const bubble = document.createElement('div')
+      bubble.className = `chat-bubble chat-bubble-${role}`
+      bubble.textContent = text
+      messagesEl!.appendChild(bubble)
+      messagesEl!.scrollTop = messagesEl!.scrollHeight
+      return bubble
+    }
+
+    chatForm.addEventListener('submit', (e) => {
+      e.preventDefault()
+      const msg = chatInput!.value.trim()
+      if (!msg) return
+
+      if (activeChatEs) {
+        activeChatEs.close()
+        activeChatEs = null
+      }
+
+      appendBubble('user', msg)
+      chatInput!.value = ''
+      chatSend!.disabled = true
+
+      const assistantBubble = appendBubble('assistant', '')
+      assistantBubble.classList.add('chat-bubble-pending')
+
+      const url =
+        `${API_BASE}/api/chat/stream` +
+        `?repoUrl=${encodeURIComponent(buildRepoUrl(repoFullName))}` +
+        `&message=${encodeURIComponent(msg)}` +
+        `&provider=${encodeURIComponent(lastAnalysisProvider)}`
+      const es = new EventSource(url)
+      activeChatEs = es
+
+      es.addEventListener('token', (ev: MessageEvent) => {
+        try {
+          const { text } = JSON.parse(ev.data)
+          assistantBubble.classList.remove('chat-bubble-pending')
+          assistantBubble.textContent += text
+          messagesEl!.scrollTop = messagesEl!.scrollHeight
+        } catch {}
+      })
+
+      es.addEventListener('error' as any, (ev: MessageEvent) => {
+        if (!ev.data) return
+        try {
+          const { message } = JSON.parse(ev.data)
+          assistantBubble.classList.remove('chat-bubble-pending')
+          assistantBubble.classList.add('chat-bubble-error')
+          assistantBubble.textContent = message || 'Error en el chat'
+        } catch {}
+      })
+
+      es.addEventListener('done', () => {
+        assistantBubble.classList.remove('chat-bubble-pending')
+        if (!assistantBubble.textContent) {
+          assistantBubble.classList.add('chat-bubble-error')
+          assistantBubble.textContent = 'El modelo no devolvió respuesta.'
+        }
+        chatSend!.disabled = false
+        es.close()
+        activeChatEs = null
+      })
+
+      es.onerror = () => {
+        if (es.readyState === EventSource.CLOSED) return
+        assistantBubble.classList.remove('chat-bubble-pending')
+        assistantBubble.classList.add('chat-bubble-error')
+        assistantBubble.textContent = 'Conexión perdida con el servidor'
+        chatSend!.disabled = false
+        es.close()
+        activeChatEs = null
+      }
+    })
+  }
+
   let activeEs: EventSource | null = null
+  let lastAnalysisProvider: string = 'ollama'
+  let timerInterval: number | null = null
+  let timerStartedAt = 0
+
+  function startTimer() {
+    stopTimer()
+    timerEl.classList.remove('timer-final')
+    timerStartedAt = performance.now()
+    timerEl.textContent = '00:00.0'
+    timerInterval = window.setInterval(() => {
+      timerEl.textContent = formatTimer(performance.now() - timerStartedAt)
+    }, 50)
+  }
+
+  function stopTimer() {
+    if (timerInterval !== null) {
+      clearInterval(timerInterval)
+      timerInterval = null
+    }
+  }
+
+  function freezeTimer(ms: number) {
+    stopTimer()
+    timerEl.textContent = formatTimer(ms)
+    timerEl.classList.add('timer-final')
+  }
+
+  let phraseInterval: number | null = null
+  let activePhraseStage: string | null = null
+  let currentPhraseIdx = -1
+
+  function pickRandomPhraseIdx(stage: string, avoidIdx: number): number {
+    const pool = STAGE_PHRASES[stage]
+    if (!pool || pool.length === 0) return -1
+    if (pool.length === 1) return 0
+    if (avoidIdx < 0) {
+      return Math.floor(Math.random() * pool.length)
+    }
+    let idx = Math.floor(Math.random() * (pool.length - 1))
+    if (idx >= avoidIdx) idx++
+    return idx
+  }
+
+  function getPhraseEl(stage: string): HTMLSpanElement | null {
+    return document.querySelector(`.timeline-item[data-stage="${stage}"] .timeline-phrase`)
+  }
+
+  function stopPhrases() {
+    if (phraseInterval !== null) {
+      clearInterval(phraseInterval)
+      phraseInterval = null
+    }
+    if (activePhraseStage) {
+      const prevEl = getPhraseEl(activePhraseStage)
+      if (prevEl) {
+        prevEl.classList.remove('visible')
+        prevEl.textContent = ''
+      }
+    }
+    activePhraseStage = null
+    currentPhraseIdx = -1
+  }
+
+  function startPhrasesForStage(stage: string) {
+    stopPhrases()
+    const pool = STAGE_PHRASES[stage]
+    if (!pool || pool.length === 0) return
+    const phraseEl = getPhraseEl(stage)
+    if (!phraseEl) return
+
+    activePhraseStage = stage
+    currentPhraseIdx = pickRandomPhraseIdx(stage, -1)
+    phraseEl.textContent = pool[currentPhraseIdx]
+    window.setTimeout(() => {
+      if (activePhraseStage === stage) phraseEl.classList.add('visible')
+    }, 50)
+
+    phraseInterval = window.setInterval(() => {
+      if (activePhraseStage !== stage) return
+      const nextIdx = pickRandomPhraseIdx(stage, currentPhraseIdx)
+      phraseEl.classList.remove('visible')
+      window.setTimeout(() => {
+        if (activePhraseStage !== stage) return
+        currentPhraseIdx = nextIdx
+        phraseEl.textContent = pool[nextIdx]
+        phraseEl.classList.add('visible')
+      }, 250)
+    }, 3000)
+  }
 
   form.addEventListener('submit', (e) => {
     e.preventDefault()
@@ -923,8 +1368,11 @@
     resetTimeline()
     progressDiv.style.display = 'block'
     setStage('starting')
+    startTimer()
 
-    const es = new EventSource(`${API_BASE}/api/analyze/stream?repoUrl=${encodeURIComponent(url)}`)
+    const provider = providerSelect.value
+    lastAnalysisProvider = provider
+    const es = new EventSource(`${API_BASE}/api/analyze/stream?repoUrl=${encodeURIComponent(url)}&provider=${encodeURIComponent(provider)}`)
     activeEs = es
 
     es.addEventListener('stage', (e: MessageEvent) => {
@@ -944,10 +1392,19 @@
     es.addEventListener('report', (e: MessageEvent) => {
       try {
         const report = JSON.parse(e.data)
+        if (typeof report.duracionMs === 'number') {
+          freezeTimer(report.duracionMs)
+        } else {
+          stopTimer()
+        }
+        stopPhrases()
         markAllDone()
         reportContainer.innerHTML = renderReport(report)
         progressDiv.style.display = 'none'
+        wireChatPanel(report.repo)
       } catch (err) {
+        stopTimer()
+        stopPhrases()
         stopTimelineSpinner()
         errorText.textContent = 'Error al parsear el reporte'
         errorDiv.style.display = 'block'
@@ -959,13 +1416,18 @@
       if (!(e as MessageEvent).data) return
       try {
         const { message } = JSON.parse((e as MessageEvent).data)
+        stopTimer()
+        stopPhrases()
         stopTimelineSpinner()
         errorText.textContent = message || 'Error durante el análisis'
         errorDiv.style.display = 'block'
+        submitBtn.disabled = false
       } catch {}
     })
 
     es.addEventListener('done', () => {
+      stopTimer()
+      stopPhrases()
       stopTimelineSpinner()
       es.close()
       activeEs = null
@@ -975,6 +1437,8 @@
     es.onerror = () => {
       // Connection failure (not a user-level error event)
       if (es.readyState === EventSource.CLOSED) return
+      stopTimer()
+      stopPhrases()
       stopTimelineSpinner()
       errorText.textContent = 'Conexión perdida con el servidor'
       errorDiv.style.display = 'block'

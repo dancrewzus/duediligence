@@ -20,6 +20,7 @@ export interface RepoStructure {
   tsconfig: Record<string, unknown> | null
   hasReadme: boolean
   readmeLength: number
+  readmeContent: string | null
   hasEslint: boolean
   hasPrettier: boolean
   hasDockerfile: boolean
@@ -36,10 +37,11 @@ export interface ScoreDimension {
 export interface AnalysisScores {
   stackArquitectura: ScoreDimension
   calidadCodigo: ScoreDimension
-  escalabilidad: ScoreDimension
-  saludEquipo: ScoreDimension
+  documentacionDx: ScoreDimension
+  mantenimientoActividad: ScoreDimension
   seguridad: ScoreDimension
   madurezDependencias: ScoreDimension
+  testingCicd: ScoreDimension
 }
 
 export interface TechStack {
@@ -64,6 +66,8 @@ export interface RepoMetrics {
   edadProyecto: string
 }
 
+export type Veredicto = 'Adoptar' | 'Usar con cautela' | 'Solo referencia' | 'Evitar'
+
 export interface AnalysisReport {
   repo: string
   descripcion: string
@@ -74,15 +78,21 @@ export interface AnalysisReport {
   deudaTecnica: 'Alta' | 'Media' | 'Baja'
   deudaJustificacion: string
   scoreTotal: number
-  riesgos: string[]
+  banderas: string[]
   fortalezas: string[]
-  recomendacion: string
-  resumen: string
+  veredicto: Veredicto
+  veredictoDetalle: string
+  sintesisTecnica: string
+  duracionMs?: number
 }
 
 export interface PortfolioEntry {
   repo: string
+  repoUrl: string
   fecha: string
   score: number
-  resumen: string
+  duracionMs: number
+  descripcion: string
+  sintesisTecnica: string
+  veredictoDetalle: string
 }

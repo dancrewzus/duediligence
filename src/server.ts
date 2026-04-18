@@ -3,7 +3,8 @@ import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { streamSSE } from 'hono/streaming'
-import { createAgent } from './agent.js'
+import { FileStorage, type McpClient } from '@strands-agents/sdk'
+import { buildAgent, chatSystemPrompt, createMcp, repoSessionId, SESSIONS_DIR } from './agent.js'
 import { loadPortfolio, persistReport } from './session/portfolio.js'
 import { mapToolToStage, STAGE_LABELS, extractReport, type Stage } from './server/stream-events.js'
 
@@ -11,13 +12,15 @@ const app = new Hono()
 
 app.use('/*', cors())
 
-let agentContext: Awaited<ReturnType<typeof createAgent>> | null = null
+let sharedMcpClient: McpClient | null = null
+let mcpInitialized = false
 
-async function getAgent() {
-  if (!agentContext) {
-    agentContext = await createAgent()
+async function getSharedMcp(): Promise<McpClient | null> {
+  if (!mcpInitialized) {
+    sharedMcpClient = await createMcp()
+    mcpInitialized = true
   }
-  return agentContext
+  return sharedMcpClient
 }
 
 function parseRepoUrl(url: string): { owner: string; repo: string } | null {
@@ -41,7 +44,20 @@ app.get('/api/analyze/stream', async (c) => {
       stream.writeSSE({ event: 'stage', data: JSON.stringify({ stage, label: STAGE_LABELS[stage] }) })
 
     try {
-      const { agent } = await getAgent()
+      const startedAt = Date.now()
+      const mcpClient = await getSharedMcp()
+      const sessionId = repoSessionId(parsed.owner, parsed.repo)
+
+      // Re-analyzing the same repo starts fresh: wipe any prior session snapshot
+      // so the new analysis does not inherit old conversation state.
+      try {
+        await new FileStorage(SESSIONS_DIR).deleteSession({ sessionId })
+      } catch (wipeErr) {
+        console.warn('[server] deleteSession failed (non-fatal):', wipeErr)
+      }
+
+      const provider = c.req.query('provider')
+      const agent = buildAgent(mcpClient, sessionId, provider)
       await emitStage('starting')
 
       const prompt = `Analiza el repositorio ${parsed.owner}/${parsed.repo} (https://github.com/${parsed.owner}/${parsed.repo}) y genera el reporte de due diligence técnico completo.`
@@ -137,6 +153,7 @@ app.get('/api/analyze/stream', async (c) => {
       }
 
       if (report) {
+        report.duracionMs = Date.now() - startedAt
         report.repo = `${parsed.owner}/${parsed.repo}`
         report.fecha = new Date().toISOString()
         await stream.writeSSE({ event: 'report', data: JSON.stringify(report) })
@@ -173,12 +190,73 @@ app.get('/api/portfolio', (c) => {
   return c.json(portfolio)
 })
 
+app.get('/api/chat/stream', async (c) => {
+  const repoUrl = c.req.query('repoUrl')
+  const message = c.req.query('message')
+  if (!repoUrl || !message) {
+    return c.json({ error: 'Missing repoUrl or message query param' }, 400)
+  }
+  const parsed = parseRepoUrl(repoUrl)
+  if (!parsed) {
+    return c.json({ error: 'Invalid GitHub URL. Expected https://github.com/owner/repo' }, 400)
+  }
+
+  return streamSSE(c, async (stream) => {
+    try {
+      const mcpClient = await getSharedMcp()
+      const sessionId = repoSessionId(parsed.owner, parsed.repo)
+
+      // No deleteSession here: the agent restores prior snapshot on init.
+      const provider = c.req.query('provider')
+      const agent = buildAgent(mcpClient, sessionId, provider)
+
+      // Force initialization first so the SessionManager restores the snapshot
+      // (which overwrites systemPrompt with the analysis prompt that mandates JSON).
+      // Then override with the chat prompt so the agent replies in prose.
+      await agent.initialize()
+      agent.systemPrompt = chatSystemPrompt()
+
+      // Inline reinforcement: the restored assistant turn is a huge JSON block, and
+      // Llama 3.1 tends to mimic that format on the next reply. Prefixing with an
+      // explicit mode tag breaks the pattern more reliably than the system prompt alone.
+      const wrappedMessage =
+        '[MODO CONVERSACIÓN — respondé en prosa natural en español, NO emitas JSON, NO repitas el reporte]\n\n' +
+        `Pregunta del dev: ${message}`
+
+      for await (const evt of agent.stream(wrappedMessage)) {
+        if (evt.type === 'modelStreamUpdateEvent') {
+          const inner = evt.event
+          if (
+            inner.type === 'modelContentBlockDeltaEvent' &&
+            inner.delta?.type === 'textDelta' &&
+            typeof inner.delta.text === 'string'
+          ) {
+            await stream.writeSSE({
+              event: 'token',
+              data: JSON.stringify({ text: inner.delta.text }),
+            })
+          }
+        }
+      }
+    } catch (err) {
+      await stream.writeSSE({
+        event: 'error',
+        data: JSON.stringify({
+          message: err instanceof Error ? err.message : 'Chat failed',
+        }),
+      })
+    } finally {
+      await stream.writeSSE({ event: 'done', data: '{}' })
+    }
+  })
+})
+
 const port = parseInt(process.env.PORT || '3001', 10)
 
 console.log(`Due Diligence API server starting on port ${port}...`)
 
 async function startServer() {
-  await getAgent()
+  await getSharedMcp()
   console.log(`Agent initialized. API ready at http://localhost:${port}`)
 
   serve({

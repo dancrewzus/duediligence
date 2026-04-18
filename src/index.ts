@@ -4,8 +4,8 @@ import { createAgent } from './agent.js'
 
 async function main() {
   console.log('╔══════════════════════════════════════════════════╗')
-  console.log('║   Due Diligence Técnico — Agente de Inversión   ║')
-  console.log('║   Powered by Strands Agents + Ollama (local)    ║')
+  console.log('║   Due Diligence Técnico — ¿Te sirve este repo?   ║')
+  console.log('║   Powered by Strands Agents + Ollama (local)     ║')
   console.log('╚══════════════════════════════════════════════════╝')
   console.log()
 
